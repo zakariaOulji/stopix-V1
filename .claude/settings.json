@@ -1,5 +1,46 @@
 {
-  "enabledPlugins": {
-    "expo@claude-plugins-official": true
+  "permissions": {
+    "allow": [
+      "Bash(npx create-expo-app@latest . --template blank-typescript)",
+      "Bash(npx create-expo-app@latest _tmp_stopix --template blank-typescript)",
+      "PowerShell($src = \"_tmp_stopix\"; $dst = \".\"; Get-ChildItem -Path $src -Force | Where-Object { $_.Name -ne \".claude\" } | ForEach-Object { Move-Item -Path $_.FullName -Destination $dst -Force }; Remove-Item -Path $src -Recurse -Force; Get-ChildItem -Force | Select-Object Name)",
+      "Read(//c/c/Users/zakar/Desktop/Project/stopix-v1/**)",
+      "Read(//c/c/Users/zakar/Desktop/Project/**)",
+      "Bash(rmdir _tmp_stopix)",
+      "Bash(rm -f App.tsx index.ts AGENTS.md CLAUDE.md LICENSE)",
+      "Bash(npx expo *)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"try{require.resolve\\('@react-navigation/bottom-tabs'\\);console.log\\('resolves'\\)}catch\\(e\\){console.log\\('NOT resolvable'\\)}\")",
+      "Bash(node -e \"const t=require\\('expo-router'\\); console.log\\('Tabs' in t ? 'Tabs exported' : 'no Tabs'\\)\")",
+      "Bash(npm uninstall *)",
+      "Bash(npm ls *)",
+      "Bash(node -e 'try{require.resolve\\('\\\\''__TRACKED_VAR__'\\\\''\\);console.log\\('\\\\''OK  __TRACKED_VAR__'\\\\''\\)}catch\\(e\\){console.log\\('\\\\''MISSING  __TRACKED_VAR__'\\\\''\\)}')",
+      "Bash(node -e \"console.log\\('react-dom version:', require\\('react-dom/package.json'\\).version\\)\")",
+      "Bash(rm -rf dist)",
+      "Bash(grep -q \"^/dist\" .gitignore)",
+      "Bash(echo \"/dist\")",
+      "Bash(node -e 'console.log\\('\\\\''__TRACKED_VAR__:'\\\\'', require\\('\\\\''./node_modules/__TRACKED_VAR__/package.json'\\\\''\\).version\\)')",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/@types/react/package.json'\\).version\\)\")",
+      "Bash(ls node_modules/expo-router/js-tabs.d.ts)",
+      "Bash(node -e \"try{console.log\\('OK', require\\('./node_modules/@react-navigation/bottom-tabs/package.json'\\).version\\)}catch\\(e\\){console.log\\('MISSING at top level'\\)}\")",
+      "Bash(node -e \"try{require.resolve\\('@react-native-async-storage/async-storage'\\);console.log\\('OK'\\)}catch\\(e\\){console.log\\('MISSING'\\)}\")",
+      "Bash(node -e \"console.log\\('RTL:', require\\('@testing-library/react-native/package.json'\\).version\\); console.log\\('rtr:', require\\('react-test-renderer/package.json'\\).version\\); console.log\\('react:', require\\('react/package.json'\\).version\\)\")",
+      "Bash(npx jest *)",
+      "Bash(node -e \"console.log\\('jest-expo:', require\\('jest-expo/package.json'\\).version\\); console.log\\('jest:', require\\('jest/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\('RTL:', require\\('@testing-library/react-native/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\('eslint:', require\\('eslint/package.json'\\).version\\); console.log\\('config-expo:', require\\('eslint-config-expo/package.json'\\).version\\)\")",
+      "Bash(ls node_modules/eslint-config-expo/flat*)",
+      "Bash(npx eslint *)",
+      "Bash(echo \"--- eslint exit: $? ---\")",
+      "Bash(node -e \"console.log\\('eslint:', require\\('eslint/package.json'\\).version\\)\")",
+      "Bash(echo \"=== EXIT: $? ===\")",
+      "Bash(echo \"=== lint exit: $? ===\")",
+      "Bash(npm run *)",
+      "Bash(npm test *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\zakar\\.claude\\projects\\c--Users-zakar-Desktop-Project-stopix-v1\\memory"
+    ]
   }
 }
