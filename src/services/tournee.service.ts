@@ -1,11 +1,11 @@
 import { ENV } from '@/config/env';
-import { api } from '@/api';
+import { supabase } from '@/api/supabase';
 import { tourneesMock, stopsMock, fakeDelay } from '@/mocks';
 import type { FailureReason, Stop, StopStatus, Tournee } from '@/types';
 
 export interface CreateTourneePayload {
   name: string;
-  addresses: string[];
+  stops: Omit<Stop, 'id' | 'tourneeId'>[];
 }
 
 export interface UpdateStopPayload {
@@ -14,20 +14,102 @@ export interface UpdateStopPayload {
   completedAt?: string;
 }
 
-/**
- * Tournee/stop data access. In mock mode everything resolves locally; the real
- * branch documents the exact endpoints the backend must expose.
- *
- * When wiring the backend, replace the `*Mock` returns and ensure the API
- * returns the same shapes as `Tournee` / `Stop` (or add mappers here).
- */
+// ── Row types (snake_case) ────────────────────────────────────
+interface TourneeRow {
+  id: string;
+  name: string;
+  status: Tournee['status'];
+  date: string;
+  distance_km: number | string;
+  estimated_duration_min: number;
+  region_lat: number | null;
+  region_lng: number | null;
+  start_time: string | null;
+  end_time: string | null;
+}
+interface StopRow {
+  id: string;
+  tournee_id: string;
+  order: number;
+  status: StopStatus;
+  recipient: string;
+  address: string;
+  city: string | null;
+  postal_code: string | null;
+  lat: number | null;
+  lng: number | null;
+  notes: string | null;
+  access_code: string | null;
+  packages: number;
+  eta: string | null;
+  completed_at: string | null;
+  failure_reason: FailureReason | null;
+}
+
+function mapStop(r: StopRow): Stop {
+  return {
+    id: r.id,
+    tourneeId: r.tournee_id,
+    order: r.order,
+    status: r.status,
+    recipient: r.recipient,
+    address: r.address,
+    city: r.city ?? '',
+    postalCode: r.postal_code ?? '',
+    lat: r.lat ?? 0,
+    lng: r.lng ?? 0,
+    notes: r.notes ?? undefined,
+    accessCode: r.access_code ?? undefined,
+    packages: r.packages,
+    eta: r.eta ?? undefined,
+    completedAt: r.completed_at ?? undefined,
+    failureReason: r.failure_reason ?? undefined,
+  };
+}
+
+function mapTournee(r: TourneeRow, counts: { total: number; delivered: number; failed: number }): Tournee {
+  return {
+    id: r.id,
+    name: r.name,
+    status: r.status,
+    date: r.date,
+    stopsCount: counts.total,
+    deliveredCount: counts.delivered,
+    failedCount: counts.failed,
+    distanceKm: Number(r.distance_km),
+    estimatedDurationMin: r.estimated_duration_min,
+    startTime: r.start_time ?? undefined,
+    endTime: r.end_time ?? undefined,
+    region: { latitude: r.region_lat ?? 48.8566, longitude: r.region_lng ?? 2.3522 },
+  };
+}
+
 export const tourneeService = {
   async getTournees(): Promise<Tournee[]> {
     if (ENV.USE_MOCKS) {
       await fakeDelay(500);
       return tourneesMock;
     }
-    return api.get<Tournee[]>('/tournees');
+    const { data: tournees, error } = await supabase
+      .from('tournees')
+      .select('*')
+      .order('date', { ascending: false });
+    if (error) throw new Error(error.message);
+
+    const ids = (tournees as TourneeRow[]).map((t) => t.id);
+    const { data: stops } = ids.length
+      ? await supabase.from('stops').select('tournee_id,status').in('tournee_id', ids)
+      : { data: [] as { tournee_id: string; status: StopStatus }[] };
+
+    const countFor = (id: string) => {
+      const mine = (stops ?? []).filter((s) => s.tournee_id === id);
+      return {
+        total: mine.length,
+        delivered: mine.filter((s) => s.status === 'delivered').length,
+        failed: mine.filter((s) => s.status === 'failed').length,
+      };
+    };
+    return (tournees as TourneeRow[]).map((t) => mapTournee(t, countFor(t.id)));
   },
 
   async getStops(tourneeId: string): Promise<Stop[]> {
@@ -35,16 +117,62 @@ export const tourneeService = {
       await fakeDelay(400);
       return stopsMock.filter((s) => s.tourneeId === tourneeId);
     }
-    return api.get<Stop[]>(`/tournees/${tourneeId}/stops`);
+    const { data, error } = await supabase
+      .from('stops')
+      .select('*')
+      .eq('tournee_id', tourneeId)
+      .order('order', { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data as StopRow[]).map(mapStop);
   },
 
   async createTournee(payload: CreateTourneePayload): Promise<{ tournee: Tournee; stops: Stop[] }> {
     if (ENV.USE_MOCKS) {
       await fakeDelay(800);
-      // The screen builds the optimistic objects in mock mode; this is a no-op shape.
       throw new Error('createTournee is handled locally in mock mode');
     }
-    return api.post<{ tournee: Tournee; stops: Stop[] }>('/tournees', payload);
+    const { data: userData } = await supabase.auth.getUser();
+    const distanceKm = +(payload.stops.length * 1.4).toFixed(1);
+    const { data: t, error: tErr } = await supabase
+      .from('tournees')
+      .insert({
+        user_id: userData.user?.id,
+        name: payload.name,
+        status: 'planned',
+        distance_km: distanceKm,
+        estimated_duration_min: payload.stops.length * 12,
+      })
+      .select('*')
+      .single();
+    if (tErr) throw new Error(tErr.message);
+
+    const rows = payload.stops.map((s) => ({
+      tournee_id: (t as TourneeRow).id,
+      order: s.order,
+      status: s.status,
+      recipient: s.recipient,
+      address: s.address,
+      city: s.city,
+      postal_code: s.postalCode,
+      lat: s.lat,
+      lng: s.lng,
+      notes: s.notes,
+      access_code: s.accessCode,
+      packages: s.packages,
+      eta: s.eta,
+    }));
+    const { data: inserted, error: sErr } = await supabase.from('stops').insert(rows).select('*');
+    if (sErr) throw new Error(sErr.message);
+
+    const stops = (inserted as StopRow[]).map(mapStop);
+    return {
+      tournee: mapTournee(t as TourneeRow, {
+        total: stops.length,
+        delivered: 0,
+        failed: 0,
+      }),
+      stops,
+    };
   },
 
   async startTournee(tourneeId: string): Promise<void> {
@@ -52,14 +180,20 @@ export const tourneeService = {
       await fakeDelay(600);
       return;
     }
-    await api.post(`/tournees/${tourneeId}/start`);
+    const { error } = await supabase.from('tournees').update({ status: 'active' }).eq('id', tourneeId);
+    if (error) throw new Error(error.message);
   },
 
   async updateStop(stopId: string, payload: UpdateStopPayload): Promise<void> {
-    if (ENV.USE_MOCKS) {
-      // optimistic local update already applied in the store
-      return;
-    }
-    await api.patch(`/stops/${stopId}`, payload);
+    if (ENV.USE_MOCKS) return;
+    const { error } = await supabase
+      .from('stops')
+      .update({
+        status: payload.status,
+        failure_reason: payload.failureReason ?? null,
+        completed_at: payload.completedAt ?? null,
+      })
+      .eq('id', stopId);
+    if (error) throw new Error(error.message);
   },
 };

@@ -39,7 +39,7 @@ export default function RegisterScreen() {
     const next: typeof errors = {};
     if (!fullName.trim()) next.fullName = 'Nom requis';
     if (!email.trim()) next.email = 'Email requis';
-    if (password.length < 4) next.password = 'Au moins 4 caractères';
+    if (password.length < 6) next.password = 'Au moins 6 caractères';
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -57,8 +57,12 @@ export default function RegisterScreen() {
       return;
     }
     // Final submit
-    await register({ full_name: fullName, email, employment, vehicle });
-    router.replace('/(tabs)/dashboard');
+    try {
+      await register({ full_name: fullName, email, password, employment, vehicle });
+      router.replace('/(tabs)/dashboard');
+    } catch (e) {
+      Alert.alert('Inscription impossible', e instanceof Error ? e.message : 'Réessayez.');
+    }
   };
 
   return (

@@ -11,8 +11,9 @@ import {
   Inter_500Medium,
   Inter_600SemiBold,
 } from '@expo-google-fonts/inter';
-import { useAuthStore } from '@/stores';
+import { useAuthStore, useTourneeStore } from '@/stores';
 import { initAuthToken } from '@/api';
+import { ENV } from '@/config/env';
 import { colors } from '@/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -28,10 +29,20 @@ export default function RootLayout() {
   const hydrated = useAuthStore((s) => s._hasHydrated);
   const ready = (fontsLoaded || fontError) && hydrated;
 
-  // Restore the persisted auth token into memory for the API client.
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  // Restore token + Supabase session on startup.
   useEffect(() => {
     initAuthToken();
+    useAuthStore.getState().restore();
   }, []);
+
+  // In Supabase mode, load real tournées once authenticated.
+  useEffect(() => {
+    if (isAuthenticated && !ENV.USE_MOCKS) {
+      useTourneeStore.getState().load().catch(() => {});
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (ready) {

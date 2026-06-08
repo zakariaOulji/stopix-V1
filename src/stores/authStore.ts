@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { User } from '@/types';
 import { authService, type RegisterPayload } from '@/services';
 import { setToken, clearToken } from '@/api';
+import { ENV } from '@/config/env';
 
 interface AuthState {
   user: User | null;
@@ -17,6 +18,8 @@ interface AuthState {
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => void;
   setHydrated: () => void;
+  /** Restore an existing Supabase session on app start (no-op in mock mode). */
+  restore: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -57,6 +60,16 @@ export const useAuthStore = create<AuthState>()(
         set({ user: null, isAuthenticated: false });
       },
       setHydrated: () => set({ _hasHydrated: true }),
+
+      restore: async () => {
+        if (ENV.USE_MOCKS) return;
+        try {
+          const user = await authService.me();
+          set(user ? { user, isAuthenticated: true } : { user: null, isAuthenticated: false });
+        } catch {
+          set({ user: null, isAuthenticated: false });
+        }
+      },
     }),
     {
       name: 'stopix-auth',

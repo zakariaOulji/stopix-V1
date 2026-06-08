@@ -1,57 +1,53 @@
-# Brancher le backend
+# Backend — Supabase
 
-L'app est conçue pour passer des **mocks** au **vrai backend** sans toucher aux écrans ni aux stores.
+L'app passe des **mocks** à **Supabase** via le flag `EXPO_PUBLIC_USE_MOCKS`. Seule la couche `src/services/*` change ; écrans et stores sont inchangés.
 
 ```
-écrans → stores (Zustand) → services → ┬─ mocks        (EXPO_PUBLIC_USE_MOCKS=true)
-                                        └─ api client → backend (USE_MOCKS=false)
+écrans → stores (Zustand) → services → ┬─ mocks            (USE_MOCKS=true)
+                                        └─ supabase client  (USE_MOCKS=false)
 ```
 
-## 1. Basculer en mode réel
+## ✅ Déjà fait (code)
+- Client : `src/api/supabase.ts` (session persistée dans AsyncStorage)
+- Services branchés Supabase : `auth` · `tournee` · `stats` (`src/services/*`)
+- Restauration de session au démarrage + chargement des tournées (`app/_layout.tsx`)
+- Schéma SQL complet : `supabase/schema.sql`
+- Variables d'env : `src/config/env.ts` + `.env.example`
 
+## 🟡 3 étapes manuelles (toi)
+
+### 1. Créer le projet Supabase
+- [supabase.com](https://supabase.com) → **New project** (note le mot de passe DB).
+- **Settings → API** : copie la **Project URL** et la clé **anon public**.
+
+### 2. Lancer le schéma
+- **SQL Editor → New query** → colle tout `supabase/schema.sql` → **Run**.
+- **Authentication → Providers → Email** : pour le dev, **désactive "Confirm email"** (sinon l'inscription ne crée pas de session immédiate).
+
+### 3. Renseigner `.env` et activer
 ```bash
 cp .env.example .env
 ```
-Puis dans `.env` :
 ```
 EXPO_PUBLIC_USE_MOCKS=false
-EXPO_PUBLIC_API_URL=https://votre-api.com
+EXPO_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...
 ```
-Redémarrer Metro avec cache vidé : `npx expo start --clear`.
+Puis redémarrer Metro avec cache vidé :
+```bash
+npx expo start --clear
+```
 
-C'est tout côté app : chaque service (`src/services/*.ts`) bascule automatiquement sur le client HTTP.
+## Modèle de données
+`profiles` (1-1 avec `auth.users`) · `tournees` (→ user) · `stops` (→ tournee).
+Compteurs `stopsCount/deliveredCount/failedCount` calculés à la volée. RLS : chaque livreur ne voit que ses données. Trigger `handle_new_user` crée le profil à l'inscription. Stats via la fonction `get_stats()`.
 
-## 2. Couches
+## Tester
+1. **Inscription** depuis l'app → crée `auth.users` + `profiles`.
+2. Au début il n'y a **aucune tournée** (normal : la DB est vide). Pour des données de démo, insère quelques `tournees` + `stops` liés à ton `user_id` (SQL Editor), ou via l'écran de création.
 
-| Fichier | Rôle |
-|---|---|
-| `src/config/env.ts` | Lit les vars `EXPO_PUBLIC_*` + flag `USE_MOCKS` |
-| `src/api/client.ts` | Wrapper `fetch` : URL de base, header `Authorization: Bearer`, timeout, `ApiError` typée |
-| `src/api/authToken.ts` | Stockage du token (mémoire + AsyncStorage). _Prod : préférer `expo-secure-store`._ |
-| `src/services/*.service.ts` | 1 méthode = branche mock **ou** appel API + mapping DTO→domaine |
-| `src/hooks/useStats.ts` | Stats via le service |
-
-## 3. Contrat d'API attendu
-
-| Méthode | Endpoint | Réponse |
-|---|---|---|
-| `POST` | `/auth/login` | `{ user: UserDTO, token }` |
-| `POST` | `/auth/register` | `{ user: UserDTO, token }` |
-| `GET` | `/auth/me` | `UserDTO` |
-| `POST` | `/auth/logout` | — |
-| `GET` | `/tournees` | `Tournee[]` |
-| `GET` | `/tournees/:id/stops` | `Stop[]` |
-| `POST` | `/tournees` | `{ tournee, stops }` |
-| `POST` | `/tournees/:id/start` | — |
-| `PATCH`| `/stops/:id` | `{ status, failureReason?, completedAt? }` |
-| `GET` | `/stats` | `Stats` |
-
-`UserDTO` est en `snake_case` (`full_name`, `avatar_url`…) et mappé vers le type `User` dans `auth.service.ts`. Les autres réponses suivent déjà les types de `src/types/index.ts` (ajouter un mapper si le backend diffère).
-
-## 4. Reste à faire au branchement
-
-- **Auth** : déjà câblée (login/register/logout/token). `me()` dispo pour restaurer une session via le token persisté.
-- **Tournées** : lecture via `tourneeStore.load()` (à appeler au montage des écrans), écritures (`markDelivered`/`markFailed`/`skipStop`/`startTournee`) déjà poussées au serveur (no-op en mock).
-- **Création** : l'écran construit les stops localement en mock ; en réel, faire passer par `tourneeService.createTournee(payload)`.
-- **Refresh tokens / 401** : ajouter un intercepteur dans `client.ts` (refresh + retry) si l'API utilise des tokens courts.
-- **SecureStore** : remplacer AsyncStorage par `expo-secure-store` dans `authToken.ts` pour la prod (attention : pas de support web).
+## 🔜 Reste à finir (petit glue, optionnel)
+- **Création de tournée** : l'écran construit les stops en local. Pour persister dans Supabase, appeler `tourneeService.createTournee({ name, stops })` quand `!USE_MOCKS` au lieu de `addTournee` local.
+- **Storage** : bucket pour les photos de preuve de livraison (à ajouter).
+- **Realtime** : `supabase.channel('stops')` pour le suivi live (optionnel).
+- **Géocodage** des adresses saisies (service externe) — actuellement coords mockées.

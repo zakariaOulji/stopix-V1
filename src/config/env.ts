@@ -15,4 +15,7 @@ export const ENV = {
   USE_MOCKS: (process.env.EXPO_PUBLIC_USE_MOCKS ?? 'true').toLowerCase() !== 'false',
   /** Network timeout (ms) for API requests. */
   REQUEST_TIMEOUT: Number(process.env.EXPO_PUBLIC_REQUEST_TIMEOUT ?? 15000),
+  /** Supabase project (used when USE_MOCKS=false). */
+  SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',
+  SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '',
 } as const;

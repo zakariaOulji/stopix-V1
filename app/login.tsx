@@ -32,8 +32,12 @@ export default function LoginScreen() {
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
-    await login(email, password);
-    router.replace('/(tabs)/dashboard');
+    try {
+      await login(email, password);
+      router.replace('/(tabs)/dashboard');
+    } catch (e) {
+      Alert.alert('Connexion impossible', e instanceof Error ? e.message : 'Vérifiez vos identifiants.');
+    }
   };
 
   return (
