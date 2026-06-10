@@ -48,7 +48,8 @@
       "Bash(rm -rf app/templates src/stores/templateStore.ts src/services/template.service.ts)",
       "Bash(ls app/templates)",
       "Bash(ls src/stores/templateStore.ts)",
-      "Bash(ls src/services/template.service.ts)"
+      "Bash(ls src/services/template.service.ts)",
+      "Bash(node -e \"try{require.resolve\\('expo-location'\\);console.log\\('OK'\\)}catch\\(e\\){console.log\\('MISSING'\\)}\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\zakar\\.claude\\projects\\c--Users-zakar-Desktop-Project-stopix-v1\\memory"

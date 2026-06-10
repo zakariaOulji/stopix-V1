@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import MapView, { Marker, type Region, type MapStyleElement } from 'react-native-maps';
+import MapView, { Marker, Polyline, type Region, type MapStyleElement } from 'react-native-maps';
 import { colors, fonts, radius } from '@/theme';
 import { darkMapStyle } from '@/theme/mapStyle';
 import { stopStatusMeta } from '@/utils/status';
@@ -15,6 +15,8 @@ export interface StopsMapProps {
   onMarkerPress?: (stop: Stop) => void;
   /** Highlighted (current) stop — enlarged marker; map recenters on it when it changes. */
   highlightStopId?: string;
+  /** Draw a line connecting the stops in order (to visualise the route). */
+  showRoute?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -50,9 +52,17 @@ export function StopsMap({
   interactive = true,
   onMarkerPress,
   highlightStopId,
+  showRoute = false,
   style,
 }: StopsMapProps) {
   const mapRef = useRef<MapView>(null);
+  const routeCoords = useMemo(
+    () =>
+      [...stops]
+        .sort((a, b) => a.order - b.order)
+        .map((s) => ({ latitude: s.lat, longitude: s.lng })),
+    [stops],
+  );
   const region = useMemo(
     () => computeRegion(stops, center, latitudeDelta, longitudeDelta),
     [stops, center, latitudeDelta, longitudeDelta],
@@ -89,6 +99,9 @@ export function StopsMap({
         showsCompass={false}
         showsMyLocationButton={false}
       >
+        {showRoute && routeCoords.length > 1 && (
+          <Polyline coordinates={routeCoords} strokeColor={colors.primary} strokeWidth={3} />
+        )}
         {stops.map((stop) => {
           const meta = stopStatusMeta[stop.status];
           const isCurrent = stop.id === highlightStopId;

@@ -17,9 +17,12 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, Input, Screen, StopCard, StopsMap } from '@/components';
+import { AddressAutocomplete, Button, Input, Screen, StopCard, StopsMap } from '@/components';
 import { useTourneeStore } from '@/stores';
 import { fakeDelay } from '@/mocks';
+import type { GeocodeResult } from '@/services';
+import { optimizeRoute, type LatLng } from '@/utils/optimize';
+import { getCurrentPosition } from '@/utils/location';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
 import type { Stop } from '@/types';
 
@@ -36,12 +39,15 @@ interface StopDraft {
   phone: string;
   notes: string;
   accessCode: string;
+  lat?: number;
+  lng?: number;
+  postalCode?: string;
+  city?: string;
 }
 
 let draftCounter = 0;
-const newDraft = (address = ''): StopDraft => ({
+const baseDraft = (): Omit<StopDraft, 'address'> => ({
   key: `d${Date.now()}_${draftCounter++}`,
-  address,
   recipient: '',
   packages: 1,
   vrac: 0,
@@ -49,8 +55,17 @@ const newDraft = (address = ''): StopDraft => ({
   notes: '',
   accessCode: '',
 });
+const newDraft = (address = ''): StopDraft => ({ ...baseDraft(), address });
+const draftFromGeocode = (r: GeocodeResult): StopDraft => ({
+  ...baseDraft(),
+  address: r.address,
+  lat: r.lat,
+  lng: r.lng,
+  postalCode: r.postalCode,
+  city: r.city,
+});
 
-/** Mock geocoding: deterministic coords scattered around Paris center. */
+/** Fallback coords (mock import without geocoding) scattered around Paris. */
 function coordsFor(i: number) {
   const angle = i * 2.39996;
   const dist = 0.006 + (i % 5) * 0.002;
@@ -61,17 +76,17 @@ type StopInput = Omit<Stop, 'id' | 'tourneeId'>;
 
 function buildStopInputs(drafts: StopDraft[]): StopInput[] {
   return drafts.map((d, i) => {
-    const { lat, lng } = coordsFor(i);
+    const fallback = coordsFor(i);
     const minutes = 14 * 60 + i * 13;
     return {
       order: i + 1,
       status: 'pending',
       recipient: d.recipient.trim() || `Client ${i + 1}`,
       address: d.address.split(',')[0].trim(),
-      city: 'Paris',
-      postalCode: d.address.split(',')[1]?.trim() ?? '75001',
-      lat,
-      lng,
+      city: d.city ?? 'Paris',
+      postalCode: d.postalCode ?? d.address.match(/\b\d{5}\b/)?.[0] ?? '75001',
+      lat: d.lat ?? fallback.lat,
+      lng: d.lng ?? fallback.lng,
       packages: d.packages,
       vrac: d.vrac,
       phone: d.phone.trim() || undefined,
@@ -95,17 +110,14 @@ export default function CreateTourneeScreen() {
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
   const [drafts, setDrafts] = useState<StopDraft[]>([]);
-  const [input, setInput] = useState('');
   const [scanning, setScanning] = useState(false);
   const [optimized, setOptimized] = useState(false);
+  const [optResult, setOptResult] = useState<{ improvement: number; distanceKm: number; gps: boolean } | null>(null);
   const [launching, setLaunching] = useState(false);
 
-  const addAddress = () => {
-    const v = input.trim();
-    if (!v) return;
+  const addGeocoded = (r: GeocodeResult) => {
     Haptics.selectionAsync();
-    setDrafts((d) => [...d, newDraft(v)]);
-    setInput('');
+    setDrafts((d) => [...d, draftFromGeocode(r)]);
   };
 
   const removeDraft = (key: string) => setDrafts((d) => d.filter((x) => x.key !== key));
@@ -135,21 +147,30 @@ export default function CreateTourneeScreen() {
     if (step === 2 && !optimized) {
       let active = true;
       (async () => {
-        await fakeDelay(2000);
-        if (active) {
-          setOptimized(true);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
+        // Use GPS position as the start point (falls back to no start if denied).
+        const gps = await getCurrentPosition();
+        const points: LatLng[] = drafts.map((d, i) => {
+          const fb = coordsFor(i);
+          return { lat: d.lat ?? fb.lat, lng: d.lng ?? fb.lng };
+        });
+        const { order, improvement, distanceKm } = optimizeRoute(points, gps ?? undefined);
+        // Keep the animation visible a touch.
+        await fakeDelay(900);
+        if (!active) return;
+        setDrafts((prev) => order.map((idx) => prev[idx]));
+        setOptResult({ improvement, distanceKm, gps: !!gps });
+        setOptimized(true);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       })();
       return () => {
         active = false;
       };
     }
-  }, [step, optimized]);
+  }, [step, optimized]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const previewStops = buildStops('preview', drafts);
-  const distanceKm = +(drafts.length * 1.4).toFixed(1);
-  const durationMin = drafts.length * 12;
+  const distanceKm = optResult?.distanceKm ?? +(drafts.length * 1.4).toFixed(1);
+  const durationMin = Math.round(distanceKm * 3 + drafts.length * 4);
 
   const goBack = () => (step === 0 ? router.back() : setStep((s) => s - 1));
 
@@ -211,21 +232,7 @@ export default function CreateTourneeScreen() {
                   onChangeText={setName}
                 />
               </View>
-              <View style={styles.addRow}>
-                <View style={styles.flex1}>
-                  <Input
-                    label="Adresse de livraison"
-                    icon="location-outline"
-                    value={input}
-                    onChangeText={setInput}
-                    onSubmitEditing={addAddress}
-                    returnKeyType="done"
-                  />
-                </View>
-                <Pressable onPress={addAddress} style={styles.addBtn}>
-                  <Ionicons name="add" size={24} color={colors.background} />
-                </Pressable>
-              </View>
+              <AddressAutocomplete onPick={addGeocoded} placeholder="Rechercher une adresse…" />
 
               <Button
                 label={scanning ? 'Analyse en cours…' : 'Importer une photo (IA)'}
@@ -394,10 +401,15 @@ export default function CreateTourneeScreen() {
                   </View>
                   <Text style={styles.optTitle}>Tournée optimisée ! 🎯</Text>
                   <View style={styles.optStats}>
-                    <OptStat value="-23%" label="Distance" />
+                    <OptStat value={`-${optResult?.improvement ?? 0}%`} label="Distance" />
                     <OptStat value={`${drafts.length}`} label="Stops" />
                     <OptStat value={`${distanceKm} km`} label="Total" />
                   </View>
+                  <Text style={styles.optSub}>
+                    {optResult?.gps
+                      ? 'Optimisé depuis ta position actuelle.'
+                      : 'Position GPS indisponible — ordre des stops optimisé.'}
+                  </Text>
                 </>
               )}
             </View>
@@ -406,7 +418,7 @@ export default function CreateTourneeScreen() {
           {/* STEP 3 — recap */}
           {step === 3 && (
             <View style={styles.flex1}>
-              <StopsMap stops={previewStops} interactive={false} style={styles.map} />
+              <StopsMap stops={previewStops} interactive={false} showRoute style={styles.map} />
               <View style={styles.recapStats}>
                 <Text style={styles.recapText}>
                   {drafts.length} stops · {distanceKm} km · ~{durationMin} min

@@ -101,7 +101,7 @@ export default function TourneeDetailScreen() {
               <Stat icon="time-outline" label="Durée" value={formatDuration(tournee.estimatedDurationMin)} />
             </View>
 
-            <StopsMap stops={stops} interactive={false} style={styles.map} />
+            <StopsMap stops={stops} interactive={false} showRoute style={styles.map} />
 
             <View style={styles.progressBlock}>
               <View style={styles.progressRow}>

@@ -1,5 +1,7 @@
 export { Screen } from './Screen';
 export type { ScreenProps } from './Screen';
+export { AddressAutocomplete } from './AddressAutocomplete';
+export type { AddressAutocompleteProps } from './AddressAutocomplete';
 export { Button } from './Button';
 export type { ButtonProps } from './Button';
 export { Input } from './Input';

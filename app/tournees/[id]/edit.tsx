@@ -14,17 +14,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, Input, Screen } from '@/components';
+import { AddressAutocomplete, Button, Input, Screen } from '@/components';
 import { useTourneeStore } from '@/stores';
+import type { GeocodeResult } from '@/services';
 import type { Stop } from '@/types';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
-
-const CENTER = { latitude: 48.8566, longitude: 2.3522 };
-function coordsFor(i: number) {
-  const angle = i * 2.39996;
-  const dist = 0.006 + (i % 5) * 0.002;
-  return { lat: CENTER.latitude + Math.sin(angle) * dist, lng: CENTER.longitude + Math.cos(angle) * dist };
-}
 
 interface Draft {
   key: string;
@@ -37,6 +31,8 @@ interface Draft {
   notes: string;
   lat: number;
   lng: number;
+  postalCode?: string;
+  city?: string;
 }
 let counter = 0;
 
@@ -68,24 +64,34 @@ export default function EditTourneeScreen() {
           notes: s.notes ?? '',
           lat: s.lat,
           lng: s.lng,
+          postalCode: s.postalCode,
+          city: s.city,
         })),
     [allStops, id],
   );
 
   const [drafts, setDrafts] = useState<Draft[]>(initial);
-  const [input, setInput] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const addAddress = () => {
-    const v = input.trim();
-    if (!v) return;
+  const addGeocoded = (r: GeocodeResult) => {
     Haptics.selectionAsync();
-    const { lat, lng } = coordsFor(drafts.length);
     setDrafts((d) => [
       ...d,
-      { key: `n${Date.now()}_${counter++}`, address: v, recipient: '', packages: 1, vrac: 0, phone: '', accessCode: '', notes: '', lat, lng },
+      {
+        key: `n${Date.now()}_${counter++}`,
+        address: r.address,
+        recipient: '',
+        packages: 1,
+        vrac: 0,
+        phone: '',
+        accessCode: '',
+        notes: '',
+        lat: r.lat,
+        lng: r.lng,
+        postalCode: r.postalCode,
+        city: r.city,
+      },
     ]);
-    setInput('');
   };
   const removeDraft = (key: string) => setDrafts((d) => d.filter((x) => x.key !== key));
   const updateDraft = (key: string, patch: Partial<Draft>) =>
@@ -115,8 +121,8 @@ export default function EditTourneeScreen() {
           status: 'pending',
           recipient: d.recipient.trim() || `Client ${i + 1}`,
           address: d.address.split(',')[0].trim(),
-          city: 'Paris',
-          postalCode: d.address.split(',')[1]?.trim() ?? '75001',
+          city: d.city ?? 'Paris',
+          postalCode: d.postalCode ?? d.address.match(/\b\d{5}\b/)?.[0] ?? '75001',
           lat: d.lat,
           lng: d.lng,
           packages: d.packages,
@@ -151,14 +157,7 @@ export default function EditTourneeScreen() {
       <KeyboardAvoidingView style={styles.flex1} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" showsVerticalScrollIndicator={false}>
           <Input label="Nom de la tournée" icon="bookmark-outline" value={name} onChangeText={setName} />
-          <View style={styles.addRow}>
-            <View style={styles.flex1}>
-              <Input label="Ajouter une adresse" icon="location-outline" value={input} onChangeText={setInput} onSubmitEditing={addAddress} returnKeyType="done" />
-            </View>
-            <Pressable onPress={addAddress} style={styles.addBtn}>
-              <Ionicons name="add" size={24} color={colors.background} />
-            </Pressable>
-          </View>
+          <AddressAutocomplete onPick={addGeocoded} placeholder="Ajouter une adresse…" />
 
           {drafts.map((item, index) => (
             <View key={item.key} style={styles.editCard}>

@@ -22,6 +22,7 @@ module.exports = [
       'jest.config.js',
       'jest.setup.js',
       'plugins/*',
+      'supabase/functions/*',
     ],
   },
 ];

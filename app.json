@@ -46,6 +46,12 @@
           "resizeMode": "contain"
         }
       ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "STOPIX utilise votre position pour optimiser l'itinéraire de vos tournées."
+        }
+      ],
       "./plugins/withNavQueries"
     ],
     "experiments": {

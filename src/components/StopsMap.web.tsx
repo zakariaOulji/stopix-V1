@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View, type DimensionValue, type StyleProp, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Polyline } from 'react-native-svg';
 import { colors, fonts, radius, spacing } from '@/theme';
 import { stopStatusMeta } from '@/utils/status';
 import type { Stop } from '@/types';
@@ -14,6 +15,7 @@ export interface StopsMapProps {
   interactive?: boolean;
   onMarkerPress?: (stop: Stop) => void;
   highlightStopId?: string;
+  showRoute?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -21,7 +23,7 @@ export interface StopsMapProps {
  * Web fallback for StopsMap (react-native-maps has no web build).
  * Renders a stylised dark "map" with markers positioned from real coordinates.
  */
-export function StopsMap({ stops, highlightStopId, style }: StopsMapProps) {
+export function StopsMap({ stops, highlightStopId, showRoute = false, style }: StopsMapProps) {
   const lats = stops.map((s) => s.lat);
   const lngs = stops.map((s) => s.lng);
   const minLat = Math.min(...lats);
@@ -31,14 +33,30 @@ export function StopsMap({ stops, highlightStopId, style }: StopsMapProps) {
   const latRange = maxLat - minLat || 1;
   const lngRange = maxLng - minLng || 1;
 
-  const pos = (stop: Stop): { left: DimensionValue; top: DimensionValue } => ({
-    left: `${8 + ((stop.lng - minLng) / lngRange) * 84}%`,
-    top: `${8 + ((maxLat - stop.lat) / latRange) * 84}%`,
+  const xy = (stop: Stop) => ({
+    x: 8 + ((stop.lng - minLng) / lngRange) * 84,
+    y: 8 + ((maxLat - stop.lat) / latRange) * 84,
   });
+  const pos = (stop: Stop): { left: DimensionValue; top: DimensionValue } => {
+    const { x, y } = xy(stop);
+    return { left: `${x}%`, top: `${y}%` };
+  };
+  const routePoints = [...stops]
+    .sort((a, b) => a.order - b.order)
+    .map((s) => {
+      const { x, y } = xy(s);
+      return `${x},${y}`;
+    })
+    .join(' ');
 
   return (
     <View style={[styles.container, style]}>
       <LinearGradient colors={['#141B2E', '#0A0F1E']} style={StyleSheet.absoluteFill} />
+      {showRoute && stops.length > 1 && (
+        <Svg style={StyleSheet.absoluteFill} viewBox="0 0 100 100" preserveAspectRatio="none">
+          <Polyline points={routePoints} fill="none" stroke={colors.primary} strokeWidth={0.6} />
+        </Svg>
+      )}
       {/* grid */}
       <View style={styles.grid} pointerEvents="none">
         {Array.from({ length: 5 }).map((_, i) => (

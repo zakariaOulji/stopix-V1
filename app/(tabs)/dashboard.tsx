@@ -124,7 +124,7 @@ export default function DashboardScreen() {
 
               {/* Mini map */}
               <Pressable onPress={() => router.push('/(tabs)/map')}>
-                <StopsMap stops={activeStops} interactive={false} style={styles.map} />
+                <StopsMap stops={activeStops} interactive={false} showRoute style={styles.map} />
               </Pressable>
 
               <Button

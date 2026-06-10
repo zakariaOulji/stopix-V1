@@ -119,7 +119,7 @@ export default function ExecuteScreen() {
   return (
     <View style={styles.root}>
       {/* Full-screen map */}
-      <StopsMap stops={ordered} highlightStopId={current?.id} style={StyleSheet.absoluteFill} />
+      <StopsMap stops={ordered} highlightStopId={current?.id} showRoute style={StyleSheet.absoluteFill} />
 
       {/* Top bar */}
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>

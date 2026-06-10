@@ -28,6 +28,7 @@ export default function MapScreen() {
       <StopsMap
         stops={todayStops}
         interactive
+        showRoute
         highlightStopId={selected?.id}
         onMarkerPress={setSelected}
         style={StyleSheet.absoluteFill}
