@@ -38,7 +38,17 @@
       "Bash(echo \"=== lint exit: $? ===\")",
       "Bash(npm run *)",
       "Bash(npm test *)",
-      "Bash(node -e \"try{require.resolve\\('@supabase/supabase-js'\\);require.resolve\\('react-native-url-polyfill'\\);console.log\\('OK'\\)}catch\\(e\\){console.log\\('MISSING',e.message\\)}\")"
+      "Bash(node -e \"try{require.resolve\\('@supabase/supabase-js'\\);require.resolve\\('react-native-url-polyfill'\\);console.log\\('OK'\\)}catch\\(e\\){console.log\\('MISSING',e.message\\)}\")",
+      "Bash(echo \"--- lint exit: $? ---\")",
+      "Bash(node -e \"try{console.log\\('v', require\\('react-native-draggable-flatlist/package.json'\\).version\\)}catch\\(e\\){console.log\\('MISSING'\\)}\")",
+      "Bash(ls -la .expo/types/)",
+      "Bash(grep -c \"templates\" .expo/types/router.d.ts)",
+      "Bash(grep -oE \"[^\\\\\"\\\\`]*templates[^\\\\\"\\\\`]*\" .expo/types/router.d.ts)",
+      "Bash(echo \"lint exit $?\")",
+      "Bash(rm -rf app/templates src/stores/templateStore.ts src/services/template.service.ts)",
+      "Bash(ls app/templates)",
+      "Bash(ls src/stores/templateStore.ts)",
+      "Bash(ls src/services/template.service.ts)"
     ],
     "additionalDirectories": [
       "c:\\Users\\zakar\\.claude\\projects\\c--Users-zakar-Desktop-Project-stopix-v1\\memory"

@@ -54,7 +54,7 @@ export function StopCard({ stop, onPress, active = false, showStatusBadge = true
           <View style={styles.pkg}>
             <Ionicons name="cube-outline" size={13} color={colors.muted} />
             <Text style={styles.pkgText}>
-              {stop.packages} colis
+              {stop.packages} colis{stop.vrac ? ` · ${stop.vrac} vrac` : ''}
             </Text>
           </View>
           {stop.accessCode && (

@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Linking, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -30,9 +30,11 @@ export default function ExecuteScreen() {
   const markDelivered = useTourneeStore((s) => s.markDelivered);
   const markFailed = useTourneeStore((s) => s.markFailed);
   const skipStop = useTourneeStore((s) => s.skipStop);
+  const finishTournee = useTourneeStore((s) => s.finishTournee);
 
   const [reasonsOpen, setReasonsOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const finishedRef = useRef(false);
 
   const ordered = useMemo(
     () => allStops.filter((s) => s.tourneeId === id).sort((a, b) => a.order - b.order),
@@ -42,6 +44,32 @@ export default function ExecuteScreen() {
   const current = ordered.find((s) => s.status === 'pending');
   const doneCount = ordered.filter((s) => s.status !== 'pending').length;
   const remaining = total - doneCount;
+
+  // Auto-complete the tournée once every stop is handled.
+  useEffect(() => {
+    if (id && total > 0 && !current && !finishedRef.current) {
+      finishedRef.current = true;
+      void finishTournee(id);
+    }
+  }, [id, total, current, finishTournee]);
+
+  const onManualFinish = () => {
+    Alert.alert(
+      'Terminer la tournée',
+      remaining > 0 ? `Il reste ${remaining} arrêt(s) non livré(s). Terminer quand même ?` : 'Marquer la tournée comme terminée ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Terminer',
+          style: 'destructive',
+          onPress: async () => {
+            if (id) await finishTournee(id);
+            router.replace('/(tabs)/dashboard');
+          },
+        },
+      ],
+    );
+  };
 
   // --- Draggable panel ---
   const ty = useSharedValue(0);
@@ -101,10 +129,17 @@ export default function ExecuteScreen() {
         <View style={styles.counter}>
           <Text style={styles.counterText}>{doneCount}/{total} traités</Text>
         </View>
-        <View style={styles.remainingChip}>
-          <Ionicons name="cube" size={13} color={colors.primary} />
-          <Text style={styles.remainingText}>{remaining}</Text>
-        </View>
+        {current ? (
+          <Pressable onPress={onManualFinish} style={styles.finishBtn} hitSlop={layout.hitSlop}>
+            <Ionicons name="flag" size={14} color={colors.primary} />
+            <Text style={styles.finishText}>Terminer</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.remainingChip}>
+            <Ionicons name="cube" size={13} color={colors.primary} />
+            <Text style={styles.remainingText}>{remaining}</Text>
+          </View>
+        )}
       </View>
 
       {/* Bottom panel */}
@@ -151,6 +186,17 @@ export default function ExecuteScreen() {
           {/* Details (revealed when expanded) */}
           <View style={styles.details}>
             <DetailRow icon="cube-outline" label="Colis" value={`${current.packages}`} />
+            {!!current.vrac && current.vrac > 0 && (
+              <DetailRow icon="file-tray-stacked-outline" label="Vrac" value={`${current.vrac}`} />
+            )}
+            {current.phone && (
+              <Pressable style={styles.callRow} onPress={() => Linking.openURL(`tel:${current.phone}`)}>
+                <Ionicons name="call-outline" size={16} color={colors.primary} />
+                <Text style={styles.callLabel}>Appeler</Text>
+                <Text style={styles.callValue}>{current.phone}</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+              </Pressable>
+            )}
             {current.accessCode && <DetailRow icon="keypad-outline" label="Code d'accès" value={current.accessCode} />}
             {current.notes && (
               <View style={styles.notes}>
@@ -302,6 +348,19 @@ const styles = StyleSheet.create({
     ...shadows.low,
   },
   remainingText: { fontFamily: fonts.heading, fontSize: 15, color: colors.white },
+  finishBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    height: 42,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 14,
+    ...shadows.low,
+  },
+  finishText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.primary },
 
   panel: {
     position: 'absolute',
@@ -353,6 +412,17 @@ const styles = StyleSheet.create({
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   detailLabel: { fontFamily: fonts.regular, fontSize: 14, color: colors.muted, flex: 1 },
   detailValue: { fontFamily: fonts.semibold, fontSize: 14, color: colors.white },
+  callRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+  },
+  callLabel: { fontFamily: fonts.semibold, fontSize: 14, color: colors.primary, flex: 1 },
+  callValue: { fontFamily: fonts.medium, fontSize: 14, color: colors.white },
   notes: {
     flexDirection: 'row',
     gap: spacing.sm,

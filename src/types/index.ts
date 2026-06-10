@@ -33,7 +33,11 @@ export interface Stop {
   lng: number;
   notes?: string;
   accessCode?: string;
+  phone?: string;
+  /** Number of standard parcels. */
   packages: number;
+  /** Number of bulk ("vrac") items. */
+  vrac?: number;
   /** Estimated time of arrival, e.g. "14:20". */
   eta?: string;
   /** Set when delivered/failed. */

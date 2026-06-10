@@ -40,7 +40,9 @@ interface StopRow {
   lng: number | null;
   notes: string | null;
   access_code: string | null;
+  phone: string | null;
   packages: number;
+  vrac: number | null;
   eta: string | null;
   completed_at: string | null;
   failure_reason: FailureReason | null;
@@ -60,7 +62,9 @@ function mapStop(r: StopRow): Stop {
     lng: r.lng ?? 0,
     notes: r.notes ?? undefined,
     accessCode: r.access_code ?? undefined,
+    phone: r.phone ?? undefined,
     packages: r.packages,
+    vrac: r.vrac ?? undefined,
     eta: r.eta ?? undefined,
     completedAt: r.completed_at ?? undefined,
     failureReason: r.failure_reason ?? undefined,
@@ -158,7 +162,9 @@ export const tourneeService = {
       lng: s.lng,
       notes: s.notes,
       access_code: s.accessCode,
+      phone: s.phone,
       packages: s.packages,
+      vrac: s.vrac ?? 0,
       eta: s.eta,
     }));
     const { data: inserted, error: sErr } = await supabase.from('stops').insert(rows).select('*');
@@ -182,6 +188,75 @@ export const tourneeService = {
     }
     const { error } = await supabase.from('tournees').update({ status: 'active' }).eq('id', tourneeId);
     if (error) throw new Error(error.message);
+  },
+
+  async completeTournee(tourneeId: string, endTime: string): Promise<void> {
+    if (ENV.USE_MOCKS) return;
+    const { error } = await supabase
+      .from('tournees')
+      .update({ status: 'completed', end_time: endTime })
+      .eq('id', tourneeId);
+    if (error) throw new Error(error.message);
+  },
+
+  async deleteTournee(tourneeId: string): Promise<void> {
+    if (ENV.USE_MOCKS) return;
+    const { error } = await supabase.from('tournees').delete().eq('id', tourneeId);
+    if (error) throw new Error(error.message);
+  },
+
+  async renameTournee(tourneeId: string, name: string): Promise<void> {
+    if (ENV.USE_MOCKS) return;
+    const { error } = await supabase.from('tournees').update({ name }).eq('id', tourneeId);
+    if (error) throw new Error(error.message);
+  },
+
+  /** Relaunch a tournée in place: reset its stops + apply today's quantities. */
+  async reuseTournee(
+    tourneeId: string,
+    payload: { date: string; startTime: string; stops: { id: string; packages: number; vrac: number }[] },
+  ): Promise<void> {
+    if (ENV.USE_MOCKS) return;
+    const { error: tErr } = await supabase
+      .from('tournees')
+      .update({ status: 'active', date: payload.date, start_time: payload.startTime, end_time: null })
+      .eq('id', tourneeId);
+    if (tErr) throw new Error(tErr.message);
+    await Promise.all(
+      payload.stops.map((s) =>
+        supabase
+          .from('stops')
+          .update({ packages: s.packages, vrac: s.vrac, status: 'pending', completed_at: null, failure_reason: null })
+          .eq('id', s.id),
+      ),
+    );
+  },
+
+  /** Replace all stops of a tournée (used when editing it). */
+  async replaceStops(tourneeId: string, stops: Omit<Stop, 'id' | 'tourneeId'>[]): Promise<Stop[]> {
+    if (ENV.USE_MOCKS) throw new Error('replaceStops is handled locally in mock mode');
+    const { error: dErr } = await supabase.from('stops').delete().eq('tournee_id', tourneeId);
+    if (dErr) throw new Error(dErr.message);
+    const rows = stops.map((s) => ({
+      tournee_id: tourneeId,
+      order: s.order,
+      status: s.status,
+      recipient: s.recipient,
+      address: s.address,
+      city: s.city,
+      postal_code: s.postalCode,
+      lat: s.lat,
+      lng: s.lng,
+      notes: s.notes,
+      access_code: s.accessCode,
+      phone: s.phone,
+      packages: s.packages,
+      vrac: s.vrac ?? 0,
+      eta: s.eta,
+    }));
+    const { data, error } = await supabase.from('stops').insert(rows).select('*');
+    if (error) throw new Error(error.message);
+    return (data as StopRow[]).map(mapStop).sort((a, b) => a.order - b.order);
   },
 
   async updateStop(stopId: string, payload: UpdateStopPayload): Promise<void> {

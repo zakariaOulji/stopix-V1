@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +17,22 @@ export default function TourneeDetailScreen() {
   const tournee = useTourneeStore((s) => s.tournees.find((t) => t.id === id));
   const allStops = useTourneeStore((s) => s.stops);
   const startTournee = useTourneeStore((s) => s.startTournee);
+  const deleteTournee = useTourneeStore((s) => s.deleteTournee);
+
+  const onDelete = () => {
+    if (!id) return;
+    Alert.alert('Supprimer la tournée', 'Cette action est définitive. Supprimer cette tournée et ses arrêts ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Supprimer',
+        style: 'destructive',
+        onPress: async () => {
+          await deleteTournee(id);
+          router.back();
+        },
+      },
+    ]);
+  };
 
   const stops = useMemo(
     () => allStops.filter((s) => s.tourneeId === id).sort((a, b) => a.order - b.order),
@@ -33,12 +49,22 @@ export default function TourneeDetailScreen() {
 
   const meta = tourneeStatusMeta[tournee.status];
   const progress = tournee.stopsCount ? tournee.deliveredCount / tournee.stopsCount : 0;
-  const isDone = tournee.status === 'completed';
 
   const onPrimary = async () => {
+    if (tournee.status === 'completed') {
+      router.push(`/tournees/${tournee.id}/reuse`);
+      return;
+    }
     if (tournee.status === 'planned') await startTournee(tournee.id);
     router.push(`/tournees/${tournee.id}/execute`);
   };
+
+  const primaryLabel =
+    tournee.status === 'completed'
+      ? 'Réutiliser la tournée'
+      : tournee.status === 'active'
+        ? 'Reprendre la tournée'
+        : 'Démarrer la tournée';
 
   return (
     <Screen edges={['top']}>
@@ -47,7 +73,15 @@ export default function TourneeDetailScreen() {
         <Pressable onPress={() => router.back()} hitSlop={layout.hitSlop} style={styles.back}>
           <Ionicons name="chevron-back" size={24} color={colors.white} />
         </Pressable>
-        <Badge label={meta.label} variant={meta.badge} dot={tournee.status === 'active'} />
+        <View style={styles.headerRight}>
+          <Badge label={meta.label} variant={meta.badge} dot={tournee.status === 'active'} />
+          <Pressable onPress={() => router.push(`/tournees/${tournee.id}/edit`)} hitSlop={layout.hitSlop} style={styles.deleteBtn}>
+            <Ionicons name="create-outline" size={20} color={colors.white} />
+          </Pressable>
+          <Pressable onPress={onDelete} hitSlop={layout.hitSlop} style={styles.deleteBtn}>
+            <Ionicons name="trash-outline" size={20} color={colors.danger} />
+          </Pressable>
+        </View>
       </View>
 
       <FlatList
@@ -55,7 +89,7 @@ export default function TourneeDetailScreen() {
         keyExtractor={(s) => s.id}
         renderItem={({ item }) => <StopCard stop={item} />}
         ItemSeparatorComponent={() => <View style={styles.sep} />}
-        contentContainerStyle={[styles.list, { paddingBottom: isDone ? spacing.huge : 120 }]}
+        contentContainerStyle={[styles.list, { paddingBottom: 120 }]}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.listHeader}>
@@ -85,16 +119,14 @@ export default function TourneeDetailScreen() {
       />
 
       {/* Sticky CTA */}
-      {!isDone && (
-        <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
-          <Button
-            label={tournee.status === 'active' ? 'Reprendre la tournée' : 'Démarrer la tournée'}
-            icon="play"
-            size="lg"
-            onPress={onPrimary}
-          />
-        </View>
-      )}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
+        <Button
+          label={primaryLabel}
+          icon={tournee.status === 'completed' ? 'refresh' : 'play'}
+          size="lg"
+          onPress={onPrimary}
+        />
+      </View>
     </Screen>
   );
 }
@@ -119,6 +151,8 @@ const styles = StyleSheet.create({
     height: 48,
   },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  deleteBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   notFound: { fontFamily: fonts.medium, fontSize: 16, color: colors.muted, textAlign: 'center', marginTop: spacing.huge },
   list: { paddingHorizontal: layout.screenPadding },
   listHeader: { paddingTop: spacing.sm },

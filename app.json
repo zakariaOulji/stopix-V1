@@ -49,7 +49,7 @@
       "./plugins/withNavQueries"
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": false
     }
   }
 }
