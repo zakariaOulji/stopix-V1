@@ -20,15 +20,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AddressAutocomplete, Button, Input, Screen, StopCard, StopsMap } from '@/components';
 import { useTourneeStore } from '@/stores';
 import { fakeDelay } from '@/mocks';
-import type { GeocodeResult } from '@/services';
+import { aiService, geocodeService, type GeocodeResult } from '@/services';
+import { ENV } from '@/config/env';
 import { optimizeRoute, type LatLng } from '@/utils/optimize';
 import { getCurrentPosition } from '@/utils/location';
+import { useRoutePolyline } from '@/hooks/useRoutePolyline';
+import { pickFromLibrary, takePhoto, type PickedImage } from '@/utils/imagePicker';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
 import type { Stop } from '@/types';
 
 const STEPS = ['Adresses', 'Détails & ordre', 'Optimisation', 'Récapitulatif'];
 const CENTER = { latitude: 48.8566, longitude: 2.3522 };
-const SCANNED = ['12 Rue de Rivoli, 75004', '8 Avenue Parmentier, 75011', '25 Rue du Bac, 75007', '40 Boulevard Haussmann, 75009'];
 
 interface StopDraft {
   key: string;
@@ -55,7 +57,6 @@ const baseDraft = (): Omit<StopDraft, 'address'> => ({
   notes: '',
   accessCode: '',
 });
-const newDraft = (address = ''): StopDraft => ({ ...baseDraft(), address });
 const draftFromGeocode = (r: GeocodeResult): StopDraft => ({
   ...baseDraft(),
   address: r.address,
@@ -113,6 +114,7 @@ export default function CreateTourneeScreen() {
   const [scanning, setScanning] = useState(false);
   const [optimized, setOptimized] = useState(false);
   const [optResult, setOptResult] = useState<{ improvement: number; distanceKm: number; gps: boolean } | null>(null);
+  const [startCoord, setStartCoord] = useState<{ lat: number; lng: number } | null>(null);
   const [launching, setLaunching] = useState(false);
 
   const addGeocoded = (r: GeocodeResult) => {
@@ -135,12 +137,62 @@ export default function CreateTourneeScreen() {
     });
   };
 
-  const importPhoto = async () => {
+  const runExtraction = async (img: PickedImage | null) => {
     setScanning(true);
-    await fakeDelay(1600);
-    setDrafts((d) => [...d, ...SCANNED.map((a) => newDraft(a))]);
-    setScanning(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    try {
+      const deliveries = await aiService.extractAddresses(img?.base64 ?? '', img?.mimeType ?? '');
+      if (deliveries.length === 0) {
+        Alert.alert('Aucune adresse trouvée', 'Réessaie avec une photo plus nette ou mieux cadrée.');
+        return;
+      }
+      // Geocode each extracted address to get real coordinates.
+      const built: StopDraft[] = [];
+      for (const d of deliveries) {
+        const geo = await geocodeService.geocode(d.address);
+        built.push({
+          ...baseDraft(),
+          address: geo?.address ?? d.address,
+          lat: geo?.lat,
+          lng: geo?.lng,
+          postalCode: geo?.postalCode,
+          city: geo?.city,
+          recipient: d.recipient ?? '',
+          phone: d.phone ?? '',
+          packages: d.packages ?? 1,
+          vrac: d.vrac ?? 0,
+        });
+      }
+      setDrafts((prev) => [...prev, ...built]);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      Alert.alert('Import impossible', e instanceof Error ? e.message : 'Réessaie.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const importPhoto = () => {
+    if (ENV.USE_MOCKS) {
+      runExtraction(null);
+      return;
+    }
+    Alert.alert('Importer une feuille de route', 'Choisis la source de la photo', [
+      {
+        text: 'Prendre une photo',
+        onPress: async () => {
+          const img = await takePhoto();
+          if (img) runExtraction(img);
+        },
+      },
+      {
+        text: 'Choisir dans la galerie',
+        onPress: async () => {
+          const img = await pickFromLibrary();
+          if (img) runExtraction(img);
+        },
+      },
+      { text: 'Annuler', style: 'cancel' },
+    ]);
   };
 
   useEffect(() => {
@@ -159,6 +211,7 @@ export default function CreateTourneeScreen() {
         if (!active) return;
         setDrafts((prev) => order.map((idx) => prev[idx]));
         setOptResult({ improvement, distanceKm, gps: !!gps });
+        setStartCoord(gps);
         setOptimized(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       })();
@@ -169,6 +222,7 @@ export default function CreateTourneeScreen() {
   }, [step, optimized]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const previewStops = buildStops('preview', drafts);
+  const { polyline: routePolyline } = useRoutePolyline(previewStops, startCoord);
   const distanceKm = optResult?.distanceKm ?? +(drafts.length * 1.4).toFixed(1);
   const durationMin = Math.round(distanceKm * 3 + drafts.length * 4);
 
@@ -418,7 +472,7 @@ export default function CreateTourneeScreen() {
           {/* STEP 3 — recap */}
           {step === 3 && (
             <View style={styles.flex1}>
-              <StopsMap stops={previewStops} interactive={false} showRoute style={styles.map} />
+              <StopsMap stops={previewStops} interactive={false} showRoute start={startCoord ?? undefined} routePolyline={routePolyline ?? undefined} style={styles.map} />
               <View style={styles.recapStats}>
                 <Text style={styles.recapText}>
                   {drafts.length} stops · {distanceKm} km · ~{durationMin} min

@@ -5,3 +5,7 @@ export type { CreateTourneePayload, UpdateStopPayload } from './tournee.service'
 export { statsService } from './stats.service';
 export { geocodeService } from './geocode.service';
 export type { AddressPrediction, GeocodeResult } from './geocode.service';
+export { aiService } from './ai.service';
+export type { ExtractedDelivery } from './ai.service';
+export { routeService } from './route.service';
+export type { RouteResult } from './route.service';

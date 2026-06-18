@@ -5,9 +5,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Badge, Button, ProgressBar, Screen, StopCard, StopsMap } from '@/components';
 import { useTourneeStore } from '@/stores';
+import { useRoutePolyline } from '@/hooks/useRoutePolyline';
 import { tourneeStatusMeta } from '@/utils/status';
 import { formatDuration } from '@/utils/format';
-import { colors, fonts, layout, spacing } from '@/theme';
+import { colors, fonts, layout, radius, spacing } from '@/theme';
 
 export default function TourneeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -38,6 +39,7 @@ export default function TourneeDetailScreen() {
     () => allStops.filter((s) => s.tourneeId === id).sort((a, b) => a.order - b.order),
     [allStops, id],
   );
+  const { polyline } = useRoutePolyline(stops);
 
   if (!tournee) {
     return (
@@ -101,7 +103,13 @@ export default function TourneeDetailScreen() {
               <Stat icon="time-outline" label="Durée" value={formatDuration(tournee.estimatedDurationMin)} />
             </View>
 
-            <StopsMap stops={stops} interactive={false} showRoute style={styles.map} />
+            <Pressable onPress={() => router.push(`/tournees/${tournee.id}/map`)} style={styles.mapWrap}>
+              <StopsMap stops={stops} interactive={false} showRoute routePolyline={polyline ?? undefined} style={styles.map} />
+              <View style={styles.mapExpand} pointerEvents="none">
+                <Ionicons name="expand-outline" size={16} color={colors.white} />
+                <Text style={styles.mapExpandText}>Voir en grand</Text>
+              </View>
+            </Pressable>
 
             <View style={styles.progressBlock}>
               <View style={styles.progressRow}>
@@ -169,7 +177,21 @@ const styles = StyleSheet.create({
   stat: { flex: 1, alignItems: 'center', gap: 4 },
   statValue: { fontFamily: fonts.heading, fontSize: 16, color: colors.white },
   statLabel: { fontFamily: fonts.regular, fontSize: 12, color: colors.muted },
-  map: { height: 170, marginBottom: spacing.lg },
+  mapWrap: { marginBottom: spacing.lg },
+  map: { height: 170 },
+  mapExpand: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.overlay,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderRadius: radius.sm,
+  },
+  mapExpandText: { fontFamily: fonts.medium, fontSize: 11, color: colors.white },
   progressBlock: { gap: spacing.sm, marginBottom: spacing.xl },
   progressRow: { flexDirection: 'row', justifyContent: 'space-between' },
   progressLabel: { fontFamily: fonts.medium, fontSize: 14, color: colors.white },

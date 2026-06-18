@@ -26,6 +26,35 @@ function pick(components: AddressComponent[], type: string): string {
   return components?.find((c) => c.types.includes(type))?.long_name ?? '';
 }
 
+/** Decode a Google encoded polyline into {lat,lng} points. */
+function decodePolyline(str: string): { lat: number; lng: number }[] {
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+  const coords: { lat: number; lng: number }[] = [];
+  while (index < str.length) {
+    let b: number;
+    let shift = 0;
+    let result = 0;
+    do {
+      b = str.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+    shift = 0;
+    result = 0;
+    do {
+      b = str.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lng += result & 1 ? ~(result >> 1) : result >> 1;
+    coords.push({ lat: lat / 1e5, lng: lng / 1e5 });
+  }
+  return coords;
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders });
 }
@@ -35,7 +64,7 @@ Deno.serve(async (req) => {
   if (!KEY) return json({ error: 'GOOGLE_PLACES_KEY not set' }, 500);
 
   try {
-    const { action, query, placeId } = await req.json();
+    const { action, query, placeId, points } = await req.json();
 
     if (action === 'autocomplete') {
       if (!query || query.trim().length < 3) return json({ predictions: [] });
@@ -85,6 +114,53 @@ Deno.serve(async (req) => {
         lng: r.geometry.location.lng,
         postalCode: pick(r.address_components, 'postal_code'),
         city: pick(r.address_components, 'locality'),
+      });
+    }
+
+    if (action === 'directions') {
+      const pts: { lat: number; lng: number }[] = Array.isArray(points) ? points : [];
+      if (pts.length < 2) return json({ polyline: pts, distanceKm: 0, durationMin: 0 });
+
+      // Google Directions allows ~25 points per request -> chunk with 1-point overlap.
+      const CHUNK = 25;
+      const all: { lat: number; lng: number }[] = [];
+      let meters = 0;
+      let seconds = 0;
+      let googleStatus = '';
+      let googleError = '';
+
+      for (let i = 0; i < pts.length - 1; i += CHUNK - 1) {
+        const seg = pts.slice(i, i + CHUNK);
+        if (seg.length < 2) break;
+        const origin = `${seg[0].lat},${seg[0].lng}`;
+        const dest = `${seg[seg.length - 1].lat},${seg[seg.length - 1].lng}`;
+        const way = seg.slice(1, -1).map((p) => `${p.lat},${p.lng}`).join('|');
+        const url =
+          `https://maps.googleapis.com/maps/api/directions/json` +
+          `?origin=${origin}&destination=${dest}` +
+          (way ? `&waypoints=${encodeURIComponent(way)}` : '') +
+          `&mode=driving&key=${KEY}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        googleStatus = data.status ?? '';
+        if (data.error_message) googleError = data.error_message;
+        const route = data.routes?.[0];
+        if (route) {
+          const decoded = decodePolyline(route.overview_polyline.points);
+          if (all.length > 0 && decoded.length > 0) decoded.shift(); // drop shared boundary point
+          all.push(...decoded);
+          for (const leg of route.legs ?? []) {
+            meters += leg.distance?.value ?? 0;
+            seconds += leg.duration?.value ?? 0;
+          }
+        }
+      }
+
+      return json({
+        polyline: all,
+        distanceKm: +(meters / 1000).toFixed(1),
+        durationMin: Math.round(seconds / 60),
+        ...(all.length === 0 ? { googleStatus, googleError } : {}),
       });
     }
 

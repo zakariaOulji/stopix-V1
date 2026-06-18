@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import MapView, { Marker, Polyline, type Region, type MapStyleElement } from 'react-native-maps';
 import { colors, fonts, radius } from '@/theme';
 import { darkMapStyle } from '@/theme/mapStyle';
-import { stopStatusMeta } from '@/utils/status';
+import type { LatLng } from '@/utils/optimize';
 import type { Stop } from '@/types';
 
 export interface StopsMapProps {
@@ -17,6 +17,10 @@ export interface StopsMapProps {
   highlightStopId?: string;
   /** Draw a line connecting the stops in order (to visualise the route). */
   showRoute?: boolean;
+  /** Real road-following polyline (overrides the straight line when provided). */
+  routePolyline?: LatLng[];
+  /** Optional start point (e.g. GPS position) — route line starts here. */
+  start?: { lat: number; lng: number };
   style?: StyleProp<ViewStyle>;
 }
 
@@ -53,16 +57,30 @@ export function StopsMap({
   onMarkerPress,
   highlightStopId,
   showRoute = false,
+  routePolyline,
+  start,
   style,
 }: StopsMapProps) {
   const mapRef = useRef<MapView>(null);
-  const routeCoords = useMemo(
-    () =>
-      [...stops]
-        .sort((a, b) => a.order - b.order)
-        .map((s) => ({ latitude: s.lat, longitude: s.lng })),
-    [stops],
-  );
+  // Custom markers need tracksViewChanges=true to render; we keep it on briefly
+  // (then off for perf) and re-enable it whenever the stops change.
+  const stopsSignature = stops.map((s) => `${s.id}:${s.status}`).join(',');
+  const [tracking, setTracking] = useState(true);
+  useEffect(() => {
+    setTracking(true);
+    const t = setTimeout(() => setTracking(false), 1500);
+    return () => clearTimeout(t);
+  }, [stopsSignature]);
+
+  const routeCoords = useMemo(() => {
+    if (routePolyline && routePolyline.length > 1) {
+      return routePolyline.map((p) => ({ latitude: p.lat, longitude: p.lng }));
+    }
+    const ordered = [...stops]
+      .sort((a, b) => a.order - b.order)
+      .map((s) => ({ latitude: s.lat, longitude: s.lng }));
+    return start ? [{ latitude: start.lat, longitude: start.lng }, ...ordered] : ordered;
+  }, [stops, start, routePolyline]);
   const region = useMemo(
     () => computeRegion(stops, center, latitudeDelta, longitudeDelta),
     [stops, center, latitudeDelta, longitudeDelta],
@@ -102,8 +120,14 @@ export function StopsMap({
         {showRoute && routeCoords.length > 1 && (
           <Polyline coordinates={routeCoords} strokeColor={colors.primary} strokeWidth={3} />
         )}
+        {start && (
+          <Marker coordinate={{ latitude: start.lat, longitude: start.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={tracking}>
+            <View style={styles.startMarker}>
+              <View style={styles.startDot} />
+            </View>
+          </Marker>
+        )}
         {stops.map((stop) => {
-          const meta = stopStatusMeta[stop.status];
           const isCurrent = stop.id === highlightStopId;
           return (
             <Marker
@@ -112,16 +136,16 @@ export function StopsMap({
               onPress={() => onMarkerPress?.(stop)}
               anchor={{ x: 0.5, y: 0.5 }}
               zIndex={isCurrent ? 99 : 1}
-              tracksViewChanges={isCurrent}
+              tracksViewChanges={tracking || isCurrent}
             >
               <View
                 style={[
                   styles.marker,
-                  { borderColor: meta.color, backgroundColor: colors.surface },
+                  { borderColor: colors.danger, backgroundColor: colors.danger },
                   isCurrent && styles.markerCurrent,
                 ]}
               >
-                <Text style={[styles.markerText, { color: isCurrent ? colors.background : meta.color }]}>
+                <Text style={[styles.markerText, { color: colors.white }]}>
                   {stop.order}
                 </Text>
               </View>
@@ -153,4 +177,15 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.05 }],
   },
   markerText: { fontFamily: fonts.heading, fontSize: 12 },
+  startMarker: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0,212,106,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+  },
+  startDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: colors.primary },
 });

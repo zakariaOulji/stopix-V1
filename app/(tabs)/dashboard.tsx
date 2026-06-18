@@ -18,6 +18,7 @@ import {
 import { useAuthStore, useTourneeStore, useUiStore } from '@/stores';
 import { fakeDelay } from '@/mocks';
 import { useStats } from '@/hooks/useStats';
+import { useRoutePolyline } from '@/hooks/useRoutePolyline';
 import { formatDate, formatDuration } from '@/utils/format';
 import { tourneeStatusMeta } from '@/utils/status';
 import { useSimulatedLoad } from '@/utils/useSimulatedLoad';
@@ -44,6 +45,7 @@ export default function DashboardScreen() {
   const active = tournees.find((t) => t.status === 'active');
   const lastDone = tournees.find((t) => t.status === 'completed');
   const activeStops = active ? allStops.filter((s) => s.tourneeId === active.id) : [];
+  const { polyline } = useRoutePolyline(activeStops);
   const progress = active ? active.deliveredCount / active.stopsCount : 0;
   const remaining = active ? active.stopsCount - active.deliveredCount - active.failedCount : 0;
 
@@ -124,7 +126,7 @@ export default function DashboardScreen() {
 
               {/* Mini map */}
               <Pressable onPress={() => router.push('/(tabs)/map')}>
-                <StopsMap stops={activeStops} interactive={false} showRoute style={styles.map} />
+                <StopsMap stops={activeStops} interactive={false} showRoute routePolyline={polyline ?? undefined} style={styles.map} />
               </Pressable>
 
               <Button

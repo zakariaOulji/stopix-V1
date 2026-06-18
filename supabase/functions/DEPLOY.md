@@ -23,11 +23,17 @@ npx supabase secrets set GOOGLE_PLACES_KEY=VOTRE_CLE_GOOGLE
 npx supabase functions deploy geocode
 ```
 
-## (Plus tard) Fonction `extract-addresses` (OpenAI)
+## Fonction `extract-addresses` (OpenAI GPT-4o vision)
+
 ```bash
-npx supabase secrets set OPENAI_API_KEY=VOTRE_CLE_OPENAI
+# Clé OpenAI en secret
+npx supabase secrets set OPENAI_API_KEY=sk-...VOTRE_CLE
+
+# Déployer
 npx supabase functions deploy extract-addresses
 ```
+
+Extrait les adresses (+ destinataire / téléphone / colis / vrac) d'une photo de feuille de route.
 
 ## Vérifier
 - Dashboard Supabase → **Edge Functions** → `geocode` doit apparaître (déployée).
@@ -35,5 +41,6 @@ npx supabase functions deploy extract-addresses
 
 ## Notes
 - `verify_jwt` est activé par défaut : l'app envoie automatiquement le token de l'utilisateur connecté.
-- Côté Google Cloud, active **Places API** ET **Geocoding API** sur la clé.
-- Redéployer après modif du code : relancer `npx supabase functions deploy geocode`.
+- Côté Google Cloud, active **Places API** + **Geocoding API** + **Directions API** sur la clé.
+  (La fonction `geocode` gère l'autocomplétion, le géocodage ET le tracé d'itinéraire.)
+- **Après chaque modif du code de la fonction, redéploie** : `npx supabase functions deploy geocode`.

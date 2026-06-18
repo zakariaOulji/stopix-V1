@@ -78,6 +78,7 @@ export default function RootLayout() {
           <Stack.Screen name="tournees/create/index" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="tournees/[id]/reuse" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="tournees/[id]/edit" options={{ animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="tournees/[id]/map" options={{ animation: 'slide_from_bottom' }} />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>

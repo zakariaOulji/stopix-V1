@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Polyline } from 'react-native-svg';
 import { colors, fonts, radius, spacing } from '@/theme';
-import { stopStatusMeta } from '@/utils/status';
+import type { LatLng } from '@/utils/optimize';
 import type { Stop } from '@/types';
 
 export interface StopsMapProps {
@@ -16,6 +16,8 @@ export interface StopsMapProps {
   onMarkerPress?: (stop: Stop) => void;
   highlightStopId?: string;
   showRoute?: boolean;
+  routePolyline?: LatLng[];
+  start?: { lat: number; lng: number };
   style?: StyleProp<ViewStyle>;
 }
 
@@ -23,9 +25,17 @@ export interface StopsMapProps {
  * Web fallback for StopsMap (react-native-maps has no web build).
  * Renders a stylised dark "map" with markers positioned from real coordinates.
  */
-export function StopsMap({ stops, highlightStopId, showRoute = false, style }: StopsMapProps) {
-  const lats = stops.map((s) => s.lat);
-  const lngs = stops.map((s) => s.lng);
+export function StopsMap({
+  stops,
+  highlightStopId,
+  showRoute = false,
+  routePolyline,
+  start,
+  style,
+}: StopsMapProps) {
+  const extra = [...(start ? [start] : []), ...(routePolyline ?? [])];
+  const lats = [...stops.map((s) => s.lat), ...extra.map((p) => p.lat)];
+  const lngs = [...stops.map((s) => s.lng), ...extra.map((p) => p.lng)];
   const minLat = Math.min(...lats);
   const maxLat = Math.max(...lats);
   const minLng = Math.min(...lngs);
@@ -33,21 +43,23 @@ export function StopsMap({ stops, highlightStopId, showRoute = false, style }: S
   const latRange = maxLat - minLat || 1;
   const lngRange = maxLng - minLng || 1;
 
-  const xy = (stop: Stop) => ({
-    x: 8 + ((stop.lng - minLng) / lngRange) * 84,
-    y: 8 + ((maxLat - stop.lat) / latRange) * 84,
+  const xy = (p: { lat: number; lng: number }) => ({
+    x: 8 + ((p.lng - minLng) / lngRange) * 84,
+    y: 8 + ((maxLat - p.lat) / latRange) * 84,
   });
   const pos = (stop: Stop): { left: DimensionValue; top: DimensionValue } => {
     const { x, y } = xy(stop);
     return { left: `${x}%`, top: `${y}%` };
   };
-  const routePoints = [...stops]
-    .sort((a, b) => a.order - b.order)
-    .map((s) => {
-      const { x, y } = xy(s);
-      return `${x},${y}`;
-    })
-    .join(' ');
+  const startXY = start ? xy(start) : null;
+  const lineSource =
+    routePolyline && routePolyline.length > 1
+      ? routePolyline
+      : [
+          ...(start ? [start] : []),
+          ...[...stops].sort((a, b) => a.order - b.order).map((s) => ({ lat: s.lat, lng: s.lng })),
+        ];
+  const routePoints = lineSource.map((p) => { const { x, y } = xy(p); return `${x},${y}`; }).join(' ');
 
   return (
     <View style={[styles.container, style]}>
@@ -56,6 +68,11 @@ export function StopsMap({ stops, highlightStopId, showRoute = false, style }: S
         <Svg style={StyleSheet.absoluteFill} viewBox="0 0 100 100" preserveAspectRatio="none">
           <Polyline points={routePoints} fill="none" stroke={colors.primary} strokeWidth={0.6} />
         </Svg>
+      )}
+      {startXY && (
+        <View style={[styles.startWrap, { left: `${startXY.x}%`, top: `${startXY.y}%` }]}>
+          <View style={styles.startDot} />
+        </View>
       )}
       {/* grid */}
       <View style={styles.grid} pointerEvents="none">
@@ -68,20 +85,17 @@ export function StopsMap({ stops, highlightStopId, showRoute = false, style }: S
       </View>
 
       {stops.map((stop) => {
-        const meta = stopStatusMeta[stop.status];
         const isCurrent = stop.id === highlightStopId;
         return (
           <View key={stop.id} style={[styles.marker, pos(stop), isCurrent && styles.markerCurrentWrap]}>
             <View
               style={[
                 styles.pin,
-                { borderColor: meta.color },
+                { borderColor: colors.danger, backgroundColor: colors.danger },
                 isCurrent && { borderColor: colors.primary, backgroundColor: colors.primary },
               ]}
             >
-              <Text style={[styles.pinText, { color: isCurrent ? colors.background : meta.color }]}>
-                {stop.order}
-              </Text>
+              <Text style={[styles.pinText, { color: colors.white }]}>{stop.order}</Text>
             </View>
           </View>
         );
@@ -107,6 +121,19 @@ const styles = StyleSheet.create({
   gridLineH: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.04)' },
   gridLineV: { position: 'absolute', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(255,255,255,0.04)' },
   marker: { position: 'absolute', transform: [{ translateX: -13 }, { translateY: -13 }] },
+  startWrap: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
+    transform: [{ translateX: -10 }, { translateY: -10 }],
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,212,106,0.25)',
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  startDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
   markerCurrentWrap: { zIndex: 10 },
   pin: {
     minWidth: 26,

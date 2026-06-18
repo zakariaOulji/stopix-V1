@@ -13,6 +13,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheet, Button, NavigationSheet, StopsMap, SwipeConfirm } from '@/components';
 import { useTourneeStore } from '@/stores';
+import { useRoutePolyline } from '@/hooks/useRoutePolyline';
 import { failureReasonMeta } from '@/utils/status';
 import type { FailureReason } from '@/types';
 import { colors, fonts, layout, radius, shadows, spacing } from '@/theme';
@@ -40,6 +41,7 @@ export default function ExecuteScreen() {
     () => allStops.filter((s) => s.tourneeId === id).sort((a, b) => a.order - b.order),
     [allStops, id],
   );
+  const { polyline } = useRoutePolyline(ordered);
   const total = ordered.length;
   const current = ordered.find((s) => s.status === 'pending');
   const doneCount = ordered.filter((s) => s.status !== 'pending').length;
@@ -119,7 +121,7 @@ export default function ExecuteScreen() {
   return (
     <View style={styles.root}>
       {/* Full-screen map */}
-      <StopsMap stops={ordered} highlightStopId={current?.id} showRoute style={StyleSheet.absoluteFill} />
+      <StopsMap stops={ordered} highlightStopId={current?.id} showRoute routePolyline={polyline ?? undefined} style={StyleSheet.absoluteFill} />
 
       {/* Top bar */}
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>

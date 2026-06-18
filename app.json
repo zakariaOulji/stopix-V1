@@ -52,6 +52,13 @@
           "locationWhenInUsePermission": "STOPIX utilise votre position pour optimiser l'itinéraire de vos tournées."
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "STOPIX accède à vos photos pour importer une feuille de route.",
+          "cameraPermission": "STOPIX utilise l'appareil photo pour scanner une feuille de route."
+        }
+      ],
       "./plugins/withNavQueries"
     ],
     "experiments": {
