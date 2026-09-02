@@ -18,6 +18,7 @@ export interface StopsMapProps {
   showRoute?: boolean;
   routePolyline?: LatLng[];
   start?: { lat: number; lng: number };
+  showUserLocation?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 

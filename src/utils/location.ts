@@ -19,3 +19,19 @@ export async function getCurrentPosition(): Promise<Coords | null> {
     return null;
   }
 }
+
+/** Continuously track the device position. Returns a subscription (call .remove()). */
+export async function watchPosition(
+  onChange: (c: Coords) => void,
+): Promise<{ remove: () => void } | null> {
+  try {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') return null;
+    return Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.Balanced, distanceInterval: 25 },
+      (pos) => onChange({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+    );
+  } catch {
+    return null;
+  }
+}

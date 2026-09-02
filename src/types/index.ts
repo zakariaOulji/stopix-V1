@@ -43,6 +43,9 @@ export interface Stop {
   /** Set when delivered/failed. */
   completedAt?: string;
   failureReason?: FailureReason;
+  /** Proof of delivery. */
+  proofUrl?: string;
+  signatureUrl?: string;
 }
 
 export type TourneeStatus = 'planned' | 'active' | 'completed';

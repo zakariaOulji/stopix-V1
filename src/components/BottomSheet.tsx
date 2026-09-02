@@ -37,9 +37,7 @@ export function BottomSheet({ visible, onClose, children, title, dismissable = t
   }, [translateY]);
 
   const close = useCallback(() => {
-    translateY.value = withTiming(sheetHeight, { duration: 200 }, (finished) => {
-      if (finished) runOnJS(setMounted)(false);
-    });
+    translateY.value = withTiming(sheetHeight, { duration: 200 });
   }, [sheetHeight, translateY]);
 
   // Drive mount + animation off the `visible` prop.
@@ -50,15 +48,20 @@ export function BottomSheet({ visible, onClose, children, title, dismissable = t
       requestAnimationFrame(open);
     } else if (mounted) {
       close();
+      // Guarantee the unmount even if the close animation is interrupted by a
+      // relayout (e.g. sheet content shrinking on dismiss). Otherwise the sheet
+      // stays mounted and its invisible backdrop keeps capturing touches → the
+      // whole app appears frozen.
+      const t = setTimeout(() => setMounted(false), 240);
+      return () => clearTimeout(t);
     }
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onLayout = (e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
-    if (h > 0 && Math.abs(h - sheetHeight) > 1) {
-      setSheetHeight(h);
-      if (!visible) translateY.value = h;
-    }
+    // Only adopt the measured height while open — never snap translateY here, as
+    // that would cancel an in-flight close animation.
+    if (h > 0 && visible && Math.abs(h - sheetHeight) > 1) setSheetHeight(h);
   };
 
   const pan = Gesture.Pan()

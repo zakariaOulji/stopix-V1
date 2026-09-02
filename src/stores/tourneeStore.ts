@@ -3,7 +3,10 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Stop, StopStatus, Tournee, FailureReason } from '@/types';
 import { tourneesMock, stopsMock } from '@/mocks';
-import { tourneeService } from '@/services';
+import { tourneeService, routeService } from '@/services';
+import { totalTourneeDuration } from '@/utils/format';
+import { optimizeRoute } from '@/utils/optimize';
+import { getCurrentPosition } from '@/utils/location';
 import { ENV } from '@/config/env';
 
 const PARIS_CENTER = { latitude: 48.8566, longitude: 2.3522 };
@@ -41,7 +44,9 @@ interface TourneeState {
   startTournee: (tourneeId: string) => Promise<void>;
   setCurrentStopIndex: (index: number) => void;
   nextStop: () => void;
-  markDelivered: (stopId: string) => void;
+  markDelivered: (stopId: string, proof?: { proofUrl?: string; signatureUrl?: string }) => void;
+  /** Attach proof URLs after a background upload finishes (stop already delivered). */
+  attachProof: (stopId: string, proof: { proofUrl?: string; signatureUrl?: string }) => void;
   markFailed: (stopId: string, reason: FailureReason) => void;
   skipStop: (stopId: string) => void;
   /** Mark a tournée as completed (last stop done, or manual finish). */
@@ -55,6 +60,8 @@ interface TourneeState {
   ) => Promise<void>;
   /** Replace a tournée's stops (when editing it). */
   updateTourneeStops: (tourneeId: string, stops: Omit<Stop, 'id' | 'tourneeId'>[]) => Promise<void>;
+  /** Re-optimize the order of the remaining (pending) stops from the GPS position. */
+  optimizeTournee: (tourneeId: string) => Promise<{ reordered: boolean; usedGps: boolean }>;
   /** Rename a tournée. */
   renameTournee: (tourneeId: string, name: string) => Promise<void>;
   addTournee: (tournee: Tournee, stops: Stop[]) => void;
@@ -126,13 +133,31 @@ export const useTourneeStore = create<TourneeState>()(
       return { currentStopIndex: Math.min(state.currentStopIndex + 1, list.length - 1) };
     }),
 
-  markDelivered: (stopId) => {
+  markDelivered: (stopId, proof) => {
     const completedAt = nowHHMM();
-    void tourneeService.updateStop(stopId, { status: 'delivered', completedAt }).catch(() => {});
+    const extra = { completedAt, proofUrl: proof?.proofUrl, signatureUrl: proof?.signatureUrl };
+    void tourneeService
+      .updateStop(stopId, { status: 'delivered', ...extra })
+      .catch(() => {});
     set((state) => {
-      const stops = applyStatus(state.stops, stopId, 'delivered', { completedAt });
+      const stops = applyStatus(state.stops, stopId, 'delivered', extra);
       return { stops, tournees: state.tournees.map((t) => recountTournee(t, stops)) };
     });
+  },
+
+  attachProof: (stopId, proof) => {
+    void tourneeService.setStopProof(stopId, proof.proofUrl, proof.signatureUrl).catch(() => {});
+    set((state) => ({
+      stops: state.stops.map((s) =>
+        s.id === stopId
+          ? {
+              ...s,
+              ...(proof.proofUrl ? { proofUrl: proof.proofUrl } : {}),
+              ...(proof.signatureUrl ? { signatureUrl: proof.signatureUrl } : {}),
+            }
+          : s,
+      ),
+    }));
   },
 
   markFailed: (stopId, reason) => {
@@ -224,13 +249,65 @@ export const useTourneeStore = create<TourneeState>()(
         return { stops: all, tournees: state.tournees.map((t) => (t.id === tourneeId ? recountTournee(t, all) : t)) };
       });
 
-    if (ENV.USE_MOCKS) {
-      const stops: Stop[] = stopInputs.map((s, i) => ({ ...s, id: `${tourneeId}-stop-${i + 1}`, tourneeId }));
-      applyLocal(stops);
-      return;
+    const finalStops: Stop[] = ENV.USE_MOCKS
+      ? stopInputs.map((s, i) => ({ ...s, id: `${tourneeId}-stop-${i + 1}`, tourneeId }))
+      : await tourneeService.replaceStops(tourneeId, stopInputs);
+    applyLocal(finalStops);
+
+    // Recompute + persist real metrics for the new stop set.
+    const route = await routeService.getRoutePolyline(finalStops.map((s) => ({ lat: s.lat, lng: s.lng })));
+    if (route) {
+      const durationMin = totalTourneeDuration(route.durationMin, finalStops.length);
+      set((state) => ({
+        tournees: state.tournees.map((t) =>
+          t.id === tourneeId ? { ...t, distanceKm: route.distanceKm, estimatedDurationMin: durationMin } : t,
+        ),
+      }));
+      if (!ENV.USE_MOCKS) {
+        await tourneeService.setTourneeMetrics(tourneeId, route.distanceKm, durationMin).catch(() => {});
+      }
     }
-    const stops = await tourneeService.replaceStops(tourneeId, stopInputs);
-    applyLocal(stops);
+  },
+
+  optimizeTournee: async (tourneeId) => {
+    const gps = await getCurrentPosition();
+    const mine = get()
+      .stops.filter((s) => s.tourneeId === tourneeId)
+      .sort((a, b) => a.order - b.order);
+    const handled = mine.filter((s) => s.status !== 'pending');
+    const pending = mine.filter((s) => s.status === 'pending');
+    if (pending.length < 2) return { reordered: false, usedGps: !!gps };
+
+    // Start from GPS, else from the last handled stop.
+    const last = handled[handled.length - 1];
+    const start = gps ?? (last ? { lat: last.lat, lng: last.lng } : undefined);
+    const { order } = optimizeRoute(pending.map((s) => ({ lat: s.lat, lng: s.lng })), start ?? undefined);
+    const optimizedPending = order.map((i) => pending[i]);
+
+    const reordered = [...handled, ...optimizedPending].map((s, i) => ({ ...s, order: i + 1 }));
+    const byId = new Map(reordered.map((s) => [s.id, s]));
+    set((state) => {
+      const stops = state.stops.map((s) => byId.get(s.id) ?? s);
+      return { stops, currentStopIndex: firstPendingIndex(stops, tourneeId) };
+    });
+
+    if (!ENV.USE_MOCKS) {
+      await tourneeService
+        .setStopsOrder(reordered.map((s) => ({ id: s.id, order: s.order })))
+        .catch(() => {});
+      // Refresh distance/duration for the new order.
+      const route = await routeService.getRoutePolyline(reordered.map((s) => ({ lat: s.lat, lng: s.lng })));
+      if (route) {
+        const durationMin = totalTourneeDuration(route.durationMin, reordered.length);
+        set((state) => ({
+          tournees: state.tournees.map((t) =>
+            t.id === tourneeId ? { ...t, distanceKm: route.distanceKm, estimatedDurationMin: durationMin } : t,
+          ),
+        }));
+        await tourneeService.setTourneeMetrics(tourneeId, route.distanceKm, durationMin).catch(() => {});
+      }
+    }
+    return { reordered: true, usedGps: !!gps };
   },
 
   renameTournee: async (tourneeId, name) => {
@@ -247,6 +324,16 @@ export const useTourneeStore = create<TourneeState>()(
     })),
 
   createTournee: async (name, stopInputs) => {
+    // Real road distance + driving time (Google Directions, cached) → persisted.
+    const route = await routeService.getRoutePolyline(
+      stopInputs.map((s) => ({ lat: s.lat, lng: s.lng })),
+    );
+    const distanceKm = route?.distanceKm ?? +(stopInputs.length * 1.4).toFixed(1);
+    const durationMin =
+      route?.durationMin != null
+        ? totalTourneeDuration(route.durationMin, stopInputs.length)
+        : stopInputs.length * 12;
+
     if (ENV.USE_MOCKS) {
       const id = `tournee-${Date.now()}`;
       const stops: Stop[] = stopInputs.map((s, i) => ({
@@ -262,14 +349,19 @@ export const useTourneeStore = create<TourneeState>()(
         stopsCount: stops.length,
         deliveredCount: 0,
         failedCount: 0,
-        distanceKm: +(stops.length * 1.4).toFixed(1),
-        estimatedDurationMin: stops.length * 12,
+        distanceKm,
+        estimatedDurationMin: durationMin,
         region: PARIS_CENTER,
       };
       set((state) => ({ tournees: [tournee, ...state.tournees], stops: [...state.stops, ...stops] }));
       return id;
     }
-    const { tournee, stops } = await tourneeService.createTournee({ name, stops: stopInputs });
+    const { tournee, stops } = await tourneeService.createTournee({
+      name,
+      stops: stopInputs,
+      distanceKm,
+      durationMin,
+    });
     set((state) => ({ tournees: [tournee, ...state.tournees], stops: [...state.stops, ...stops] }));
     return tournee.id;
   },

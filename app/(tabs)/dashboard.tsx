@@ -19,7 +19,7 @@ import { useAuthStore, useTourneeStore, useUiStore } from '@/stores';
 import { fakeDelay } from '@/mocks';
 import { useStats } from '@/hooks/useStats';
 import { useRoutePolyline } from '@/hooks/useRoutePolyline';
-import { formatDate, formatDuration } from '@/utils/format';
+import { formatDate, formatDuration, totalTourneeDuration } from '@/utils/format';
 import { tourneeStatusMeta } from '@/utils/status';
 import { useSimulatedLoad } from '@/utils/useSimulatedLoad';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
@@ -45,7 +45,7 @@ export default function DashboardScreen() {
   const active = tournees.find((t) => t.status === 'active');
   const lastDone = tournees.find((t) => t.status === 'completed');
   const activeStops = active ? allStops.filter((s) => s.tourneeId === active.id) : [];
-  const { polyline } = useRoutePolyline(activeStops);
+  const { polyline, distanceKm: roadKm, durationMin: roadMin } = useRoutePolyline(activeStops);
   const progress = active ? active.deliveredCount / active.stopsCount : 0;
   const remaining = active ? active.stopsCount - active.deliveredCount - active.failedCount : 0;
 
@@ -108,7 +108,10 @@ export default function DashboardScreen() {
                 <View style={styles.flex1}>
                   <Text style={styles.tourneeName} numberOfLines={1}>{active.name}</Text>
                   <Text style={styles.tourneeMeta}>
-                    {active.distanceKm} km · {formatDuration(active.estimatedDurationMin)}
+                    {roadKm ?? active.distanceKm} km ·{' '}
+                    {formatDuration(
+                      roadMin != null ? totalTourneeDuration(roadMin, active.stopsCount) : active.estimatedDurationMin,
+                    )}
                   </Text>
                 </View>
                 <Badge label={tourneeStatusMeta[active.status].label} variant="success" dot />

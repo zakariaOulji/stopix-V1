@@ -1,3 +1,11 @@
+/** Estimated handling time per stop (delivery, signature…), added to driving time. */
+export const HANDLING_MIN_PER_STOP = 5;
+
+/** Total tournée duration = real driving time + handling time per stop. */
+export function totalTourneeDuration(drivingMin: number, stopsCount: number): number {
+  return Math.round(drivingMin + stopsCount * HANDLING_MIN_PER_STOP);
+}
+
 /** 312 -> "5h12" ; 45 -> "45min". */
 export function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);

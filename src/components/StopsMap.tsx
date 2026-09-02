@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import MapView, { Marker, Polyline, type Region, type MapStyleElement } from 'react-native-maps';
-import { colors, fonts, radius } from '@/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, fonts, radius, shadows } from '@/theme';
 import { darkMapStyle } from '@/theme/mapStyle';
+import { getCurrentPosition } from '@/utils/location';
 import type { LatLng } from '@/utils/optimize';
 import type { Stop } from '@/types';
 
@@ -21,6 +23,8 @@ export interface StopsMapProps {
   routePolyline?: LatLng[];
   /** Optional start point (e.g. GPS position) — route line starts here. */
   start?: { lat: number; lng: number };
+  /** Show the device's live position (blue dot) + a recenter button. */
+  showUserLocation?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -59,9 +63,19 @@ export function StopsMap({
   showRoute = false,
   routePolyline,
   start,
+  showUserLocation = false,
   style,
 }: StopsMapProps) {
   const mapRef = useRef<MapView>(null);
+  const recenterOnUser = async () => {
+    const pos = await getCurrentPosition();
+    if (pos) {
+      mapRef.current?.animateToRegion(
+        { latitude: pos.lat, longitude: pos.lng, latitudeDelta: 0.01, longitudeDelta: 0.01 },
+        500,
+      );
+    }
+  };
   // Custom markers need tracksViewChanges=true to render; we keep it on briefly
   // (then off for perf) and re-enable it whenever the stops change.
   const stopsSignature = stops.map((s) => `${s.id}:${s.status}`).join(',');
@@ -115,6 +129,7 @@ export function StopsMap({
         pitchEnabled={false}
         toolbarEnabled={false}
         showsCompass={false}
+        showsUserLocation={showUserLocation}
         showsMyLocationButton={false}
       >
         {showRoute && routeCoords.length > 1 && (
@@ -153,12 +168,32 @@ export function StopsMap({
           );
         })}
       </MapView>
+
+      {showUserLocation && (
+        <Pressable onPress={recenterOnUser} style={styles.recenterBtn} hitSlop={8}>
+          <Ionicons name="locate" size={20} color={colors.primary} />
+        </Pressable>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { overflow: 'hidden', borderRadius: radius.lg, backgroundColor: colors.surface },
+  recenterBtn: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.mid,
+  },
   marker: {
     minWidth: 26,
     height: 26,

@@ -63,6 +63,8 @@ export function StopCard({ stop, onPress, active = false, showStatusBadge = true
               <Text style={styles.pkgText}>{stop.accessCode}</Text>
             </View>
           )}
+          {stop.proofUrl && <Ionicons name="camera" size={13} color={colors.primary} />}
+          {stop.signatureUrl && <Ionicons name="create" size={13} color={colors.primary} />}
         </View>
       </View>
 

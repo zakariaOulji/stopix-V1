@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,7 +8,7 @@ import { Badge, Button, ProgressBar, Screen, StopCard, StopsMap } from '@/compon
 import { useTourneeStore } from '@/stores';
 import { useRoutePolyline } from '@/hooks/useRoutePolyline';
 import { tourneeStatusMeta } from '@/utils/status';
-import { formatDuration } from '@/utils/format';
+import { formatDuration, totalTourneeDuration } from '@/utils/format';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
 
 export default function TourneeDetailScreen() {
@@ -19,6 +20,24 @@ export default function TourneeDetailScreen() {
   const allStops = useTourneeStore((s) => s.stops);
   const startTournee = useTourneeStore((s) => s.startTournee);
   const deleteTournee = useTourneeStore((s) => s.deleteTournee);
+  const optimizeTournee = useTourneeStore((s) => s.optimizeTournee);
+  const [optimizing, setOptimizing] = useState(false);
+
+  const onOptimize = async () => {
+    if (!id) return;
+    setOptimizing(true);
+    try {
+      const res = await optimizeTournee(id);
+      if (res.reordered) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert('Tournée optimisée', res.usedGps ? 'Ordre recalculé depuis ta position.' : 'Ordre recalculé.');
+      } else {
+        Alert.alert('Rien à optimiser', 'Il faut au moins 2 arrêts restants.');
+      }
+    } finally {
+      setOptimizing(false);
+    }
+  };
 
   const onDelete = () => {
     if (!id) return;
@@ -39,7 +58,7 @@ export default function TourneeDetailScreen() {
     () => allStops.filter((s) => s.tourneeId === id).sort((a, b) => a.order - b.order),
     [allStops, id],
   );
-  const { polyline } = useRoutePolyline(stops);
+  const { polyline, distanceKm, durationMin } = useRoutePolyline(stops);
 
   if (!tournee) {
     return (
@@ -99,12 +118,29 @@ export default function TourneeDetailScreen() {
 
             <View style={styles.statsRow}>
               <Stat icon="cube-outline" label="Stops" value={`${tournee.stopsCount}`} />
-              <Stat icon="navigate-outline" label="Distance" value={`${tournee.distanceKm} km`} />
-              <Stat icon="time-outline" label="Durée" value={formatDuration(tournee.estimatedDurationMin)} />
+              <Stat icon="navigate-outline" label="Distance" value={`${distanceKm ?? tournee.distanceKm} km`} />
+              <Stat
+                icon="time-outline"
+                label="Durée"
+                value={formatDuration(
+                  durationMin != null ? totalTourneeDuration(durationMin, stops.length) : tournee.estimatedDurationMin,
+                )}
+              />
             </View>
 
             <Pressable onPress={() => router.push(`/tournees/${tournee.id}/map`)} style={styles.mapWrap}>
               <StopsMap stops={stops} interactive={false} showRoute routePolyline={polyline ?? undefined} style={styles.map} />
+
+            {tournee.status !== 'completed' && (
+              <Button
+                label={optimizing ? 'Optimisation…' : 'Ré-optimiser l’ordre'}
+                variant="secondary"
+                icon="git-compare-outline"
+                loading={optimizing}
+                onPress={onOptimize}
+                style={styles.optimizeBtn}
+              />
+            )}
               <View style={styles.mapExpand} pointerEvents="none">
                 <Ionicons name="expand-outline" size={16} color={colors.white} />
                 <Text style={styles.mapExpandText}>Voir en grand</Text>
@@ -178,7 +214,8 @@ const styles = StyleSheet.create({
   statValue: { fontFamily: fonts.heading, fontSize: 16, color: colors.white },
   statLabel: { fontFamily: fonts.regular, fontSize: 12, color: colors.muted },
   mapWrap: { marginBottom: spacing.lg },
-  map: { height: 170 },
+  map: { height: 170, marginBottom: spacing.md },
+  optimizeBtn: { marginBottom: spacing.lg },
   mapExpand: {
     position: 'absolute',
     top: spacing.sm,

@@ -24,6 +24,7 @@ import { aiService, geocodeService, type GeocodeResult } from '@/services';
 import { ENV } from '@/config/env';
 import { optimizeRoute, type LatLng } from '@/utils/optimize';
 import { getCurrentPosition } from '@/utils/location';
+import { totalTourneeDuration } from '@/utils/format';
 import { useRoutePolyline } from '@/hooks/useRoutePolyline';
 import { pickFromLibrary, takePhoto, type PickedImage } from '@/utils/imagePicker';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
@@ -222,9 +223,10 @@ export default function CreateTourneeScreen() {
   }, [step, optimized]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const previewStops = buildStops('preview', drafts);
-  const { polyline: routePolyline } = useRoutePolyline(previewStops, startCoord);
-  const distanceKm = optResult?.distanceKm ?? +(drafts.length * 1.4).toFixed(1);
-  const durationMin = Math.round(distanceKm * 3 + drafts.length * 4);
+  const { polyline: routePolyline, distanceKm: roadKm, durationMin: roadMin } = useRoutePolyline(previewStops, startCoord);
+  const distanceKm = roadKm ?? optResult?.distanceKm ?? +(drafts.length * 1.4).toFixed(1);
+  const durationMin =
+    roadMin != null ? totalTourneeDuration(roadMin, drafts.length) : Math.round(distanceKm * 3 + drafts.length * 4);
 
   const goBack = () => (step === 0 ? router.back() : setStep((s) => s - 1));
 

@@ -11,9 +11,11 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BottomSheet, Button, NavigationSheet, StopsMap, SwipeConfirm } from '@/components';
+import { BottomSheet, Button, NavigationSheet, ProofSheet, StopsMap, SwipeConfirm } from '@/components';
 import { useTourneeStore } from '@/stores';
 import { useRoutePolyline } from '@/hooks/useRoutePolyline';
+import { watchPosition, type Coords } from '@/utils/location';
+import { haversine } from '@/utils/optimize';
 import { failureReasonMeta } from '@/utils/status';
 import type { FailureReason } from '@/types';
 import { colors, fonts, layout, radius, shadows, spacing } from '@/theme';
@@ -29,13 +31,39 @@ export default function ExecuteScreen() {
 
   const allStops = useTourneeStore((s) => s.stops);
   const markDelivered = useTourneeStore((s) => s.markDelivered);
+  const attachProof = useTourneeStore((s) => s.attachProof);
   const markFailed = useTourneeStore((s) => s.markFailed);
   const skipStop = useTourneeStore((s) => s.skipStop);
   const finishTournee = useTourneeStore((s) => s.finishTournee);
+  const optimizeTournee = useTourneeStore((s) => s.optimizeTournee);
 
   const [reasonsOpen, setReasonsOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const [proofOpen, setProofOpen] = useState(false);
+  const [swipeKey, setSwipeKey] = useState(0);
+  const [optimizing, setOptimizing] = useState(false);
+  const [userPos, setUserPos] = useState<Coords | null>(null);
   const finishedRef = useRef(false);
+
+  // Track the device position to show the distance to the current stop.
+  useEffect(() => {
+    let sub: { remove: () => void } | null = null;
+    watchPosition(setUserPos).then((s) => {
+      sub = s;
+    });
+    return () => sub?.remove();
+  }, []);
+
+  const onOptimize = async () => {
+    if (!id || optimizing) return;
+    setOptimizing(true);
+    try {
+      const res = await optimizeTournee(id);
+      if (res.reordered) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } finally {
+      setOptimizing(false);
+    }
+  };
 
   const ordered = useMemo(
     () => allStops.filter((s) => s.tourneeId === id).sort((a, b) => a.order - b.order),
@@ -44,6 +72,8 @@ export default function ExecuteScreen() {
   const { polyline } = useRoutePolyline(ordered);
   const total = ordered.length;
   const current = ordered.find((s) => s.status === 'pending');
+  const distKm = userPos && current ? haversine(userPos, { lat: current.lat, lng: current.lng }) : null;
+  const distLabel = distKm == null ? null : distKm < 1 ? `${Math.round(distKm * 1000)} m` : `${distKm.toFixed(1)} km`;
   const doneCount = ordered.filter((s) => s.status !== 'pending').length;
   const remaining = total - doneCount;
 
@@ -97,7 +127,17 @@ export default function ExecuteScreen() {
   const panelStyle = useAnimatedStyle(() => ({ transform: [{ translateY: ty.value }] }));
 
   const onDelivered = () => {
-    if (current) markDelivered(current.id);
+    if (current) setProofOpen(true);
+  };
+
+  const onProofConfirmed = (proof: { proofUrl?: string; signatureUrl?: string }) => {
+    if (current) markDelivered(current.id, proof);
+    setProofOpen(false);
+  };
+
+  const onProofCancel = () => {
+    setProofOpen(false);
+    setSwipeKey((k) => k + 1); // reset the swipe slider
   };
 
   const onPickReason = (reason: FailureReason) => {
@@ -121,7 +161,7 @@ export default function ExecuteScreen() {
   return (
     <View style={styles.root}>
       {/* Full-screen map */}
-      <StopsMap stops={ordered} highlightStopId={current?.id} showRoute routePolyline={polyline ?? undefined} style={StyleSheet.absoluteFill} />
+      <StopsMap stops={ordered} highlightStopId={current?.id} showRoute routePolyline={polyline ?? undefined} showUserLocation style={StyleSheet.absoluteFill} />
 
       {/* Top bar */}
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
@@ -143,6 +183,17 @@ export default function ExecuteScreen() {
           </View>
         )}
       </View>
+
+      {/* Floating re-optimize button */}
+      {current && (
+        <Pressable
+          onPress={onOptimize}
+          style={[styles.optimizeFab, { top: insets.top + 64 }]}
+          hitSlop={layout.hitSlop}
+        >
+          <Ionicons name={optimizing ? 'hourglass-outline' : 'git-compare-outline'} size={20} color={colors.white} />
+        </Pressable>
+      )}
 
       {/* Bottom panel */}
       {current ? (
@@ -167,16 +218,24 @@ export default function ExecuteScreen() {
                 {current.address}, {current.postalCode} {current.city}
               </Text>
             </View>
-            {current.eta && (
-              <View style={styles.eta}>
-                <Ionicons name="time-outline" size={13} color={colors.muted} />
-                <Text style={styles.etaText}>{current.eta}</Text>
-              </View>
-            )}
+            <View style={styles.headerRight}>
+              {distLabel && (
+                <View style={styles.distChip}>
+                  <Ionicons name="navigate" size={11} color={colors.primary} />
+                  <Text style={styles.distText}>{distLabel}</Text>
+                </View>
+              )}
+              {current.eta && (
+                <View style={styles.eta}>
+                  <Ionicons name="time-outline" size={13} color={colors.muted} />
+                  <Text style={styles.etaText}>{current.eta}</Text>
+                </View>
+              )}
+            </View>
           </View>
 
           {/* Swipe to confirm (visible when collapsed) */}
-          <SwipeConfirm key={current.id} onConfirm={onDelivered} label="Glisser pour livrer" confirmedLabel="Livré ✓" />
+          <SwipeConfirm key={`${current.id}-${swipeKey}`} onConfirm={onDelivered} label="Glisser pour livrer" confirmedLabel="Livré ✓" />
 
           {/* Secondary actions (visible when collapsed) */}
           <View style={styles.actions}>
@@ -238,6 +297,16 @@ export default function ExecuteScreen() {
         visible={navOpen}
         onClose={() => setNavOpen(false)}
         target={current ? { lat: current.lat, lng: current.lng, label: current.address } : null}
+      />
+
+      {/* Proof of delivery */}
+      <ProofSheet
+        visible={proofOpen}
+        onClose={onProofCancel}
+        onConfirmed={onProofConfirmed}
+        onUploaded={attachProof}
+        stopId={current?.id ?? ''}
+        recipient={current?.recipient ?? ''}
       />
     </View>
   );
@@ -363,6 +432,20 @@ const styles = StyleSheet.create({
     ...shadows.low,
   },
   finishText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.primary },
+  optimizeFab: {
+    position: 'absolute',
+    left: layout.screenPadding,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    ...shadows.low,
+  },
 
   panel: {
     position: 'absolute',
@@ -393,8 +476,19 @@ const styles = StyleSheet.create({
   flex1: { flex: 1 },
   recipient: { fontFamily: fonts.semibold, fontSize: 17, color: colors.white },
   address: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted, marginTop: 2 },
+  headerRight: { alignItems: 'flex-end', gap: 4 },
   eta: { alignItems: 'center', flexDirection: 'row', gap: 3 },
   etaText: { fontFamily: fonts.medium, fontSize: 12, color: colors.muted },
+  distChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  distText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.primary },
 
   actions: { flexDirection: 'row', gap: spacing.md },
   secBtn: {

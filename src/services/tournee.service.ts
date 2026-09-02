@@ -6,12 +6,16 @@ import type { FailureReason, Stop, StopStatus, Tournee } from '@/types';
 export interface CreateTourneePayload {
   name: string;
   stops: Omit<Stop, 'id' | 'tourneeId'>[];
+  distanceKm?: number;
+  durationMin?: number;
 }
 
 export interface UpdateStopPayload {
   status: StopStatus;
   failureReason?: FailureReason;
   completedAt?: string;
+  proofUrl?: string;
+  signatureUrl?: string;
 }
 
 // ── Row types (snake_case) ────────────────────────────────────
@@ -46,6 +50,8 @@ interface StopRow {
   eta: string | null;
   completed_at: string | null;
   failure_reason: FailureReason | null;
+  proof_url: string | null;
+  signature_url: string | null;
 }
 
 function mapStop(r: StopRow): Stop {
@@ -68,6 +74,8 @@ function mapStop(r: StopRow): Stop {
     eta: r.eta ?? undefined,
     completedAt: r.completed_at ?? undefined,
     failureReason: r.failure_reason ?? undefined,
+    proofUrl: r.proof_url ?? undefined,
+    signatureUrl: r.signature_url ?? undefined,
   };
 }
 
@@ -136,7 +144,8 @@ export const tourneeService = {
       throw new Error('createTournee is handled locally in mock mode');
     }
     const { data: userData } = await supabase.auth.getUser();
-    const distanceKm = +(payload.stops.length * 1.4).toFixed(1);
+    const distanceKm = payload.distanceKm ?? +(payload.stops.length * 1.4).toFixed(1);
+    const durationMin = payload.durationMin ?? payload.stops.length * 12;
     const { data: t, error: tErr } = await supabase
       .from('tournees')
       .insert({
@@ -144,7 +153,7 @@ export const tourneeService = {
         name: payload.name,
         status: 'planned',
         distance_km: distanceKm,
-        estimated_duration_min: payload.stops.length * 12,
+        estimated_duration_min: durationMin,
       })
       .select('*')
       .single();
@@ -211,6 +220,22 @@ export const tourneeService = {
     if (error) throw new Error(error.message);
   },
 
+  async setTourneeMetrics(tourneeId: string, distanceKm: number, durationMin: number): Promise<void> {
+    if (ENV.USE_MOCKS) return;
+    const { error } = await supabase
+      .from('tournees')
+      .update({ distance_km: distanceKm, estimated_duration_min: durationMin })
+      .eq('id', tourneeId);
+    if (error) throw new Error(error.message);
+  },
+
+  async setStopsOrder(updates: { id: string; order: number }[]): Promise<void> {
+    if (ENV.USE_MOCKS) return;
+    await Promise.all(
+      updates.map((u) => supabase.from('stops').update({ order: u.order }).eq('id', u.id)),
+    );
+  },
+
   /** Relaunch a tournée in place: reset its stops + apply today's quantities. */
   async reuseTournee(
     tourneeId: string,
@@ -267,6 +292,21 @@ export const tourneeService = {
         status: payload.status,
         failure_reason: payload.failureReason ?? null,
         completed_at: payload.completedAt ?? null,
+        ...(payload.proofUrl !== undefined ? { proof_url: payload.proofUrl } : {}),
+        ...(payload.signatureUrl !== undefined ? { signature_url: payload.signatureUrl } : {}),
+      })
+      .eq('id', stopId);
+    if (error) throw new Error(error.message);
+  },
+
+  /** Attach proof URLs to an already-delivered stop (background upload result). */
+  async setStopProof(stopId: string, proofUrl?: string, signatureUrl?: string): Promise<void> {
+    if (ENV.USE_MOCKS) return;
+    const { error } = await supabase
+      .from('stops')
+      .update({
+        ...(proofUrl !== undefined ? { proof_url: proofUrl } : {}),
+        ...(signatureUrl !== undefined ? { signature_url: signatureUrl } : {}),
       })
       .eq('id', stopId);
     if (error) throw new Error(error.message);

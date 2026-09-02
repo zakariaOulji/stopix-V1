@@ -11,9 +11,10 @@ import type { Stop } from '@/types';
 export function useRoutePolyline(
   stops: Stop[],
   start?: LatLng | null,
-): { polyline: LatLng[] | null; distanceKm: number | null } {
+): { polyline: LatLng[] | null; distanceKm: number | null; durationMin: number | null } {
   const [polyline, setPolyline] = useState<LatLng[] | null>(null);
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
+  const [durationMin, setDurationMin] = useState<number | null>(null);
 
   const points: LatLng[] = [
     ...(start ? [start] : []),
@@ -26,17 +27,19 @@ export function useRoutePolyline(
     if (points.length < 2) {
       setPolyline(null);
       setDistanceKm(null);
+      setDurationMin(null);
       return;
     }
     routeService.getRoutePolyline(points).then((r) => {
       if (!active) return;
       setPolyline(r?.polyline ?? null);
       setDistanceKm(r?.distanceKm ?? null);
+      setDurationMin(r?.durationMin ?? null);
     });
     return () => {
       active = false;
     };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { polyline, distanceKm };
+  return { polyline, distanceKm, durationMin };
 }

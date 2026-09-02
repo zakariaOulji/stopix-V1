@@ -10,6 +10,7 @@
     "backgroundColor": "#0A0F1E",
     "newArchEnabled": true,
     "ios": {
+      "bundleIdentifier": "com.stopix.app",
       "supportsTablet": true,
       "userInterfaceStyle": "dark",
       "infoPlist": {
@@ -17,6 +18,7 @@
       }
     },
     "android": {
+      "package": "com.stopix.app",
       "userInterfaceStyle": "dark",
       "adaptiveIcon": {
         "backgroundColor": "#0A0F1E",
