@@ -46,6 +46,10 @@ export interface Stop {
   /** Proof of delivery. */
   proofUrl?: string;
   signatureUrl?: string;
+  /** GPS position + timestamp captured at the moment of delivery. */
+  proofLat?: number;
+  proofLng?: number;
+  deliveredAt?: string;
 }
 
 export type TourneeStatus = 'planned' | 'active' | 'completed';

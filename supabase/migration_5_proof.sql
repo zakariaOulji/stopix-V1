@@ -4,6 +4,9 @@
 -- 1. Colonnes sur les stops
 alter table public.stops add column if not exists proof_url     text;
 alter table public.stops add column if not exists signature_url text;
+alter table public.stops add column if not exists proof_lat     double precision;
+alter table public.stops add column if not exists proof_lng     double precision;
+alter table public.stops add column if not exists delivered_at  timestamptz;
 
 -- 2. Bucket de stockage (public en lecture pour afficher les preuves)
 insert into storage.buckets (id, name, public)

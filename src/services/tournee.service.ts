@@ -16,6 +16,9 @@ export interface UpdateStopPayload {
   completedAt?: string;
   proofUrl?: string;
   signatureUrl?: string;
+  proofLat?: number;
+  proofLng?: number;
+  deliveredAt?: string;
 }
 
 // ── Row types (snake_case) ────────────────────────────────────
@@ -52,6 +55,9 @@ interface StopRow {
   failure_reason: FailureReason | null;
   proof_url: string | null;
   signature_url: string | null;
+  proof_lat: number | null;
+  proof_lng: number | null;
+  delivered_at: string | null;
 }
 
 function mapStop(r: StopRow): Stop {
@@ -76,6 +82,9 @@ function mapStop(r: StopRow): Stop {
     failureReason: r.failure_reason ?? undefined,
     proofUrl: r.proof_url ?? undefined,
     signatureUrl: r.signature_url ?? undefined,
+    proofLat: r.proof_lat ?? undefined,
+    proofLng: r.proof_lng ?? undefined,
+    deliveredAt: r.delivered_at ?? undefined,
   };
 }
 
@@ -294,6 +303,9 @@ export const tourneeService = {
         completed_at: payload.completedAt ?? null,
         ...(payload.proofUrl !== undefined ? { proof_url: payload.proofUrl } : {}),
         ...(payload.signatureUrl !== undefined ? { signature_url: payload.signatureUrl } : {}),
+        ...(payload.proofLat !== undefined ? { proof_lat: payload.proofLat } : {}),
+        ...(payload.proofLng !== undefined ? { proof_lng: payload.proofLng } : {}),
+        ...(payload.deliveredAt !== undefined ? { delivered_at: payload.deliveredAt } : {}),
       })
       .eq('id', stopId);
     if (error) throw new Error(error.message);

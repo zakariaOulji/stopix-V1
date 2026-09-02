@@ -131,7 +131,15 @@ export default function ExecuteScreen() {
   };
 
   const onProofConfirmed = (proof: { proofUrl?: string; signatureUrl?: string }) => {
-    if (current) markDelivered(current.id, proof);
+    if (current) {
+      // Capture the delivery GPS (from the live-tracked position) + timestamp.
+      markDelivered(current.id, {
+        ...proof,
+        lat: userPos?.lat,
+        lng: userPos?.lng,
+        deliveredAt: new Date().toISOString(),
+      });
+    }
     setProofOpen(false);
   };
 

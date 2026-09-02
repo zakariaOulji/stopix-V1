@@ -44,7 +44,10 @@ interface TourneeState {
   startTournee: (tourneeId: string) => Promise<void>;
   setCurrentStopIndex: (index: number) => void;
   nextStop: () => void;
-  markDelivered: (stopId: string, proof?: { proofUrl?: string; signatureUrl?: string }) => void;
+  markDelivered: (
+    stopId: string,
+    proof?: { proofUrl?: string; signatureUrl?: string; lat?: number; lng?: number; deliveredAt?: string },
+  ) => void;
   /** Attach proof URLs after a background upload finishes (stop already delivered). */
   attachProof: (stopId: string, proof: { proofUrl?: string; signatureUrl?: string }) => void;
   markFailed: (stopId: string, reason: FailureReason) => void;
@@ -135,9 +138,25 @@ export const useTourneeStore = create<TourneeState>()(
 
   markDelivered: (stopId, proof) => {
     const completedAt = nowHHMM();
-    const extra = { completedAt, proofUrl: proof?.proofUrl, signatureUrl: proof?.signatureUrl };
+    const deliveredAt = proof?.deliveredAt ?? new Date().toISOString();
+    const extra: Partial<Stop> = {
+      completedAt,
+      deliveredAt,
+      proofUrl: proof?.proofUrl,
+      signatureUrl: proof?.signatureUrl,
+      proofLat: proof?.lat,
+      proofLng: proof?.lng,
+    };
     void tourneeService
-      .updateStop(stopId, { status: 'delivered', ...extra })
+      .updateStop(stopId, {
+        status: 'delivered',
+        completedAt,
+        deliveredAt,
+        proofUrl: proof?.proofUrl,
+        signatureUrl: proof?.signatureUrl,
+        proofLat: proof?.lat,
+        proofLng: proof?.lng,
+      })
       .catch(() => {});
     set((state) => {
       const stops = applyStatus(state.stops, stopId, 'delivered', extra);
