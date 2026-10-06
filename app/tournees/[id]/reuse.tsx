@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, Screen } from '@/components';
+import { Button, Screen, Spinner } from '@/components';
 import { useTourneeStore } from '@/stores';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
 
@@ -17,18 +17,40 @@ export default function ReuseTourneeScreen() {
   const tournee = useTourneeStore((s) => s.tournees.find((t) => t.id === id));
   const allStops = useTourneeStore((s) => s.stops);
   const reuseTournee = useTourneeStore((s) => s.reuseTournee);
+  const ensureStops = useTourneeStore((s) => s.ensureStops);
 
   const stops = useMemo(
     () => allStops.filter((s) => s.tourneeId === id).sort((a, b) => a.order - b.order),
     [allStops, id],
   );
 
-  const [qty, setQty] = useState<Record<string, Qty>>(() => {
-    const init: Record<string, Qty> = {};
-    stops.forEach((s) => (init[s.id] = { packages: 1, vrac: 0 }));
-    return init;
-  });
+  const [qty, setQty] = useState<Record<string, Qty>>({});
+  const [loadingStops, setLoadingStops] = useState(stops.length === 0);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
+
+  // Stops of a completed tournée are not loaded at startup: fetch them here.
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    ensureStops(id)
+      .catch((e: unknown) => active && setLoadError(e instanceof Error ? e.message : String(e)))
+      .finally(() => active && setLoadingStops(false));
+    return () => {
+      active = false;
+    };
+  }, [id, ensureStops]);
+
+  // Prefill with the last quantities once stops are available (without overwriting edits).
+  useEffect(() => {
+    setQty((q) => {
+      const next = { ...q };
+      stops.forEach((s) => {
+        if (!next[s.id]) next[s.id] = { packages: s.packages ?? 1, vrac: s.vrac ?? 0 };
+      });
+      return next;
+    });
+  }, [stops]);
 
   const setQ = (stopId: string, patch: Partial<Qty>) =>
     setQty((q) => ({ ...q, [stopId]: { ...q[stopId], ...patch } }));
@@ -60,6 +82,17 @@ export default function ReuseTourneeScreen() {
 
       <Text style={styles.subtitle}>Quantités d’aujourd’hui pour chaque arrêt.</Text>
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+        {stops.length === 0 && (
+          <View style={styles.empty}>
+            {loadingStops ? (
+              <Spinner size="large" />
+            ) : (
+              <Text style={styles.emptyText}>
+                {loadError ? `Impossible de charger les arrêts : ${loadError}` : 'Aucun arrêt dans cette tournée.'}
+              </Text>
+            )}
+          </View>
+        )}
         {stops.map((s, i) => (
           <View key={s.id} style={styles.card}>
             <View style={styles.cardHead}>
@@ -81,7 +114,7 @@ export default function ReuseTourneeScreen() {
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
         <Text style={styles.totals}>{stops.length} stops · {totalColis} colis · {totalVrac} vrac</Text>
-        <Button label="Relancer la tournée" size="lg" icon="rocket" loading={launching} onPress={launch} />
+        <Button label="Relancer la tournée" size="lg" icon="rocket" loading={launching} disabled={stops.length === 0} onPress={launch} />
       </View>
     </Screen>
   );
@@ -123,6 +156,8 @@ const styles = StyleSheet.create({
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceHigh, borderRadius: radius.sm, padding: 4 },
   stepBtn: { width: 34, height: 34, borderRadius: radius.sm, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   stepValue: { fontFamily: fonts.heading, fontSize: 16, color: colors.white, minWidth: 24, textAlign: 'center' },
+  empty: { paddingVertical: spacing.huge, alignItems: 'center' },
+  emptyText: { fontFamily: fonts.regular, fontSize: 14, color: colors.muted, textAlign: 'center' },
   footer: { paddingHorizontal: layout.screenPadding, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background, gap: spacing.sm },
   totals: { fontFamily: fonts.medium, fontSize: 13, color: colors.muted, textAlign: 'center' },
 });

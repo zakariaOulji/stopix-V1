@@ -11,10 +11,10 @@ Issu de l'analyse business / UX / fonctionnelle / sécurité / scalabilité du 2
 3. **Roadmap produit** — communication client, re-planification après échec, première brique du modèle économique.
 
 ## Semaine 1 (31 août – 6 sept.) — Preuve de livraison : vérifier / finir
-- [ ] Vérifier que le schéma Supabase a bien les colonnes proof_url / signature_url / lat / lng / delivered_at côté `stops` (migration à écrire si pas encore fait en base, même si le code les référence déjà)
-- [ ] Policies RLS sur le bucket Supabase Storage des preuves
+- [x] Vérifier que le schéma Supabase a bien les colonnes proof_url / signature_url / lat / lng / delivered_at côté `stops` (migration à écrire si pas encore fait en base, même si le code les référence déjà) — ✅ 6 oct. : manquaient proof_lat/proof_lng/delivered_at (ancienne version de la #5 appliquée), corrigé par `migration_6_proof_gps.sql`
+- [x] Policies RLS sur le bucket Supabase Storage des preuves — ✅ 6 oct. : bucket `proofs` + policies présents (lecture publique à durcir, cf. sécurité)
 - [ ] Vérifier le flux `ProofSheet` → `attachProof` → upload Storage → écriture `proof_url`/`signature_url` en base de bout en bout
-- [ ] Capture GPS au moment de la confirmation — confirmer qu'elle est bien envoyée au serveur, pas seulement affichée localement
+- [x] Capture GPS au moment de la confirmation — confirmer qu'elle est bien envoyée au serveur, pas seulement affichée localement — ✅ 6 oct. : proof_lat/proof_lng/delivered_at bien écrits en base
 - [ ] Tester sur device réel (pas seulement Expo Go web) : permissions caméra + localisation
 
 ## Semaine 2 (7 – 13 sept.) — Clôture preuve de livraison + verrous sécurité

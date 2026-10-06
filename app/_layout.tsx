@@ -15,6 +15,7 @@ import { useAuthStore, useTourneeStore } from '@/stores';
 import { initAuthToken } from '@/api';
 import { ENV } from '@/config/env';
 import { colors } from '@/theme';
+import { SyncErrorBanner } from '@/components';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -40,7 +41,14 @@ export default function RootLayout() {
   // In Supabase mode, load real tournées once authenticated.
   useEffect(() => {
     if (isAuthenticated && !ENV.USE_MOCKS) {
-      useTourneeStore.getState().load().catch(() => {});
+      useTourneeStore
+        .getState()
+        .load()
+        .catch((e: unknown) => {
+          const message = e instanceof Error ? e.message : String(e);
+          console.warn('[sync] load:', message);
+          useTourneeStore.setState({ syncError: `Tournées non chargées (${message})` });
+        });
     }
   }, [isAuthenticated]);
 
@@ -80,6 +88,7 @@ export default function RootLayout() {
           <Stack.Screen name="tournees/[id]/edit" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="tournees/[id]/map" options={{ animation: 'slide_from_bottom' }} />
         </Stack>
+        <SyncErrorBanner />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

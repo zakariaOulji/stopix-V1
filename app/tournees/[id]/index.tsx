@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -21,6 +21,12 @@ export default function TourneeDetailScreen() {
   const startTournee = useTourneeStore((s) => s.startTournee);
   const deleteTournee = useTourneeStore((s) => s.deleteTournee);
   const optimizeTournee = useTourneeStore((s) => s.optimizeTournee);
+  const ensureStops = useTourneeStore((s) => s.ensureStops);
+
+  // Only the active tournée's stops are loaded at startup: fetch the others on open.
+  useEffect(() => {
+    if (id) ensureStops(id).catch((e: unknown) => console.warn('[sync] ensureStops:', e instanceof Error ? e.message : e));
+  }, [id, ensureStops]);
   const [optimizing, setOptimizing] = useState(false);
 
   const onOptimize = async () => {

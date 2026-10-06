@@ -17,7 +17,7 @@ export function useStats(): { stats: Stats; loading: boolean } {
     statsService
       .getStats()
       .then((s) => active && setStats(s))
-      .catch(() => {})
+      .catch((e: unknown) => console.warn('[stats] getStats:', e instanceof Error ? e.message : e))
       .finally(() => active && setLoading(false));
     return () => {
       active = false;

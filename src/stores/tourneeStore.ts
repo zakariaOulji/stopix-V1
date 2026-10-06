@@ -27,11 +27,24 @@ const recountTournee = (t: Tournee, stops: Stop[]): Tournee => {
   };
 };
 
+/**
+ * Server writes are fire-and-forget (optimistic UI). Instead of swallowing a
+ * failure, log it and surface it so the driver knows the server is out of sync.
+ */
+const syncFailed = (action: string) => (e: unknown) => {
+  const message = e instanceof Error ? e.message : String(e);
+  console.warn(`[sync] ${action}:`, message);
+  useTourneeStore.setState({ syncError: `${action} (${message})` });
+};
+
 interface TourneeState {
   tournees: Tournee[];
   stops: Stop[];
   activeTourneeId: string | null;
   currentStopIndex: number;
+  /** Last failed server write, shown to the user until dismissed. Not persisted. */
+  syncError: string | null;
+  clearSyncError: () => void;
 
   // selectors
   getStopsFor: (tourneeId: string) => Stop[];
@@ -41,6 +54,8 @@ interface TourneeState {
   // actions
   /** Load tournees + active stops from the service (backend seam). */
   load: () => Promise<void>;
+  /** Fetch a tournée's stops from the server if they are not in the store yet. */
+  ensureStops: (tourneeId: string) => Promise<void>;
   startTournee: (tourneeId: string) => Promise<void>;
   setCurrentStopIndex: (index: number) => void;
   nextStop: () => void;
@@ -92,6 +107,9 @@ export const useTourneeStore = create<TourneeState>()(
   stops: stopsMock,
   activeTourneeId: 'tournee-active',
   currentStopIndex: firstPendingIndex(stopsMock, 'tournee-active'),
+  syncError: null,
+
+  clearSyncError: () => set({ syncError: null }),
 
   getStopsFor: (tourneeId) =>
     get().stops.filter((s) => s.tourneeId === tourneeId).sort((a, b) => a.order - b.order),
@@ -112,6 +130,16 @@ export const useTourneeStore = create<TourneeState>()(
       stops,
       activeTourneeId: active?.id ?? null,
       currentStopIndex: firstPendingIndex(stops, active?.id ?? null),
+    });
+  },
+
+  ensureStops: async (tourneeId) => {
+    // `load` only fetches the active tournée's stops; others are fetched on demand.
+    if (ENV.USE_MOCKS || get().stops.some((s) => s.tourneeId === tourneeId)) return;
+    const fresh = await tourneeService.getStops(tourneeId);
+    set((state) => {
+      const stops = [...state.stops.filter((s) => s.tourneeId !== tourneeId), ...fresh];
+      return { stops, tournees: state.tournees.map((t) => (t.id === tourneeId ? recountTournee(t, stops) : t)) };
     });
   },
 
@@ -157,7 +185,7 @@ export const useTourneeStore = create<TourneeState>()(
         proofLat: proof?.lat,
         proofLng: proof?.lng,
       })
-      .catch(() => {});
+      .catch(syncFailed('Livraison non enregistrée'));
     set((state) => {
       const stops = applyStatus(state.stops, stopId, 'delivered', extra);
       return { stops, tournees: state.tournees.map((t) => recountTournee(t, stops)) };
@@ -165,7 +193,7 @@ export const useTourneeStore = create<TourneeState>()(
   },
 
   attachProof: (stopId, proof) => {
-    void tourneeService.setStopProof(stopId, proof.proofUrl, proof.signatureUrl).catch(() => {});
+    void tourneeService.setStopProof(stopId, proof.proofUrl, proof.signatureUrl).catch(syncFailed('Preuve non enregistrée'));
     set((state) => ({
       stops: state.stops.map((s) =>
         s.id === stopId
@@ -183,17 +211,17 @@ export const useTourneeStore = create<TourneeState>()(
     const completedAt = nowHHMM();
     void tourneeService
       .updateStop(stopId, { status: 'failed', completedAt, failureReason: reason })
-      .catch(() => {});
+      .catch(syncFailed('Échec non enregistré'));
     set((state) => {
-      const stops = applyStatus(state.stops, stopId, 'failed', { completedAt, failureReason: reason });
+      const stops = applyStatus(state.stops, stopId, 'failed', { ...NO_PROOF, completedAt, failureReason: reason });
       return { stops, tournees: state.tournees.map((t) => recountTournee(t, stops)) };
     });
   },
 
   skipStop: (stopId) => {
-    void tourneeService.updateStop(stopId, { status: 'skipped' }).catch(() => {});
+    void tourneeService.updateStop(stopId, { status: 'skipped' }).catch(syncFailed('Stop passé non enregistré'));
     set((state) => {
-      const stops = applyStatus(state.stops, stopId, 'skipped', {});
+      const stops = applyStatus(state.stops, stopId, 'skipped', NO_PROOF);
       return { stops, tournees: state.tournees.map((t) => recountTournee(t, stops)) };
     });
   },
@@ -205,7 +233,7 @@ export const useTourneeStore = create<TourneeState>()(
         t.id === tourneeId ? { ...t, status: 'completed', endTime } : t,
       ),
     }));
-    await tourneeService.completeTournee(tourneeId, endTime).catch(() => {});
+    await tourneeService.completeTournee(tourneeId, endTime).catch(syncFailed('Fin de tournée non enregistrée'));
   },
 
   deleteTournee: async (tourneeId) => {
@@ -214,7 +242,7 @@ export const useTourneeStore = create<TourneeState>()(
       stops: state.stops.filter((s) => s.tourneeId !== tourneeId),
       activeTourneeId: state.activeTourneeId === tourneeId ? null : state.activeTourneeId,
     }));
-    if (!ENV.USE_MOCKS) await tourneeService.deleteTournee(tourneeId).catch(() => {});
+    if (!ENV.USE_MOCKS) await tourneeService.deleteTournee(tourneeId).catch(syncFailed('Suppression non enregistrée'));
   },
 
   reuseTournee: async (tourneeId, quantities) => {
@@ -227,6 +255,7 @@ export const useTourneeStore = create<TourneeState>()(
             status: 'pending' as const,
             completedAt: undefined,
             failureReason: undefined,
+            ...NO_PROOF,
             packages: quantities[s.id]?.packages ?? s.packages,
             vrac: quantities[s.id]?.vrac ?? s.vrac,
           }
@@ -257,7 +286,7 @@ export const useTourneeStore = create<TourneeState>()(
         .map((s) => ({ id: s.id, packages: s.packages, vrac: s.vrac ?? 0 }));
       await tourneeService
         .reuseTournee(tourneeId, { date: dateIso.slice(0, 10), startTime, stops: updates })
-        .catch(() => {});
+        .catch(syncFailed('Réinitialisation non enregistrée'));
     }
   },
 
@@ -283,7 +312,7 @@ export const useTourneeStore = create<TourneeState>()(
         ),
       }));
       if (!ENV.USE_MOCKS) {
-        await tourneeService.setTourneeMetrics(tourneeId, route.distanceKm, durationMin).catch(() => {});
+        await tourneeService.setTourneeMetrics(tourneeId, route.distanceKm, durationMin).catch(syncFailed('Distance/durée non enregistrées'));
       }
     }
   },
@@ -313,7 +342,7 @@ export const useTourneeStore = create<TourneeState>()(
     if (!ENV.USE_MOCKS) {
       await tourneeService
         .setStopsOrder(reordered.map((s) => ({ id: s.id, order: s.order })))
-        .catch(() => {});
+        .catch(syncFailed('Nouvel ordre non enregistré'));
       // Refresh distance/duration for the new order.
       const route = await routeService.getRoutePolyline(reordered.map((s) => ({ lat: s.lat, lng: s.lng })));
       if (route) {
@@ -323,7 +352,7 @@ export const useTourneeStore = create<TourneeState>()(
             t.id === tourneeId ? { ...t, distanceKm: route.distanceKm, estimatedDurationMin: durationMin } : t,
           ),
         }));
-        await tourneeService.setTourneeMetrics(tourneeId, route.distanceKm, durationMin).catch(() => {});
+        await tourneeService.setTourneeMetrics(tourneeId, route.distanceKm, durationMin).catch(syncFailed('Distance/durée non enregistrées'));
       }
     }
     return { reordered: true, usedGps: !!gps };
@@ -333,7 +362,7 @@ export const useTourneeStore = create<TourneeState>()(
     set((state) => ({
       tournees: state.tournees.map((t) => (t.id === tourneeId ? { ...t, name } : t)),
     }));
-    if (!ENV.USE_MOCKS) await tourneeService.renameTournee(tourneeId, name).catch(() => {});
+    if (!ENV.USE_MOCKS) await tourneeService.renameTournee(tourneeId, name).catch(syncFailed('Renommage non enregistré'));
   },
 
   addTournee: (tournee, stops) =>
@@ -405,6 +434,15 @@ export const useTourneeStore = create<TourneeState>()(
     },
   ),
 );
+
+/** Proof fields cleared when a stop is reset or ends up not delivered. */
+const NO_PROOF: Partial<Stop> = {
+  proofUrl: undefined,
+  signatureUrl: undefined,
+  proofLat: undefined,
+  proofLng: undefined,
+  deliveredAt: undefined,
+};
 
 function applyStatus(
   stops: Stop[],

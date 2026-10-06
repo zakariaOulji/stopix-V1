@@ -60,6 +60,23 @@ interface StopRow {
   delivered_at: string | null;
 }
 
+/** Proof columns cleared when a stop is reset or ends up not delivered. */
+const NO_PROOF_ROW = {
+  proof_url: null,
+  signature_url: null,
+  proof_lat: null,
+  proof_lng: null,
+  delivered_at: null,
+};
+
+/** supabase-js resolves with `{ error }` instead of rejecting: surface it for batched writes. */
+function throwFirstError(results: { error: { message: string } | null }[]): void {
+  const failed = results.filter((r) => r.error);
+  if (failed.length > 0) {
+    throw new Error(`${failed.length}/${results.length} écritures échouées : ${failed[0].error!.message}`);
+  }
+}
+
 function mapStop(r: StopRow): Stop {
   return {
     id: r.id,
@@ -240,9 +257,10 @@ export const tourneeService = {
 
   async setStopsOrder(updates: { id: string; order: number }[]): Promise<void> {
     if (ENV.USE_MOCKS) return;
-    await Promise.all(
+    const results = await Promise.all(
       updates.map((u) => supabase.from('stops').update({ order: u.order }).eq('id', u.id)),
     );
+    throwFirstError(results);
   },
 
   /** Relaunch a tournée in place: reset its stops + apply today's quantities. */
@@ -256,14 +274,22 @@ export const tourneeService = {
       .update({ status: 'active', date: payload.date, start_time: payload.startTime, end_time: null })
       .eq('id', tourneeId);
     if (tErr) throw new Error(tErr.message);
-    await Promise.all(
+    const results = await Promise.all(
       payload.stops.map((s) =>
         supabase
           .from('stops')
-          .update({ packages: s.packages, vrac: s.vrac, status: 'pending', completed_at: null, failure_reason: null })
+          .update({
+            packages: s.packages,
+            vrac: s.vrac,
+            status: 'pending',
+            completed_at: null,
+            failure_reason: null,
+            ...NO_PROOF_ROW,
+          })
           .eq('id', s.id),
       ),
     );
+    throwFirstError(results);
   },
 
   /** Replace all stops of a tournée (used when editing it). */
@@ -301,6 +327,8 @@ export const tourneeService = {
         status: payload.status,
         failure_reason: payload.failureReason ?? null,
         completed_at: payload.completedAt ?? null,
+        // A stop that is not delivered must not keep a previous delivery proof.
+        ...(payload.status !== 'delivered' ? NO_PROOF_ROW : {}),
         ...(payload.proofUrl !== undefined ? { proof_url: payload.proofUrl } : {}),
         ...(payload.signatureUrl !== undefined ? { signature_url: payload.signatureUrl } : {}),
         ...(payload.proofLat !== undefined ? { proof_lat: payload.proofLat } : {}),

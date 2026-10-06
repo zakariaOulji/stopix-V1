@@ -34,3 +34,4 @@ export { ProofSheet } from './ProofSheet';
 export type { ProofSheetProps } from './ProofSheet';
 export { SignaturePad } from './SignaturePad';
 export type { SignaturePadProps } from './SignaturePad';
+export { SyncErrorBanner } from './SyncErrorBanner';
