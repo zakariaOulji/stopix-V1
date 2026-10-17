@@ -6,8 +6,9 @@ Voir `README.md` et `BACKEND.md` pour le détail technique. Voir **`ROADMAP.md`*
 
 ## Situation du dépôt
 
-- Ce dossier local est en avance sur `origin` : branche `zakaria/add/photoIa`, avec un gros lot de modifications **non committées** (execute.tsx, tourneeStore.ts, tournee.service.ts, StopCard.tsx, types/index.ts…) qui implémentent la preuve de livraison (photo + signature + géolocalisation via `ProofSheet` / `attachProof`). Ne pas supposer que le code sur GitHub reflète l'état réel — toujours vérifier `git status`/`git diff` avant d'analyser une feature.
-- `main` sur GitHub est figé sur le frontend mocké initial. Le vrai backend (auth, tournées, geocoding, extraction IA par photo, preuve de livraison) vit sur `dev` / `zakaria/add/*` et n'est pas mergé.
+- Depuis le 6 oct. 2026, la preuve de livraison (photo + signature + GPS via `ProofSheet` / `attachProof`) est committée et poussée sur `zakaria/add/photoIa`, et `dev` a été avancé au même commit (fast-forward). Toujours vérifier `git status`/`git diff` avant d'analyser une feature.
+- `main` sur GitHub reste figé sur le frontend mocké initial : le vrai backend (auth, tournées, geocoding, extraction IA par photo, preuve de livraison) vit sur `dev` et n'est pas mergé dans `main`.
+- Base Supabase : migrations à appliquer à la main dans le SQL Editor, jusqu'à `supabase/migration_6_proof_gps.sql` (appliquée le 6 oct.).
 - `.env` contient de vrais identifiants Supabase (URL + clé anon) et est suivi par git sur certaines branches — à corriger (voir ROADMAP, section sécurité).
 
 ## Repères utiles

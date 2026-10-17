@@ -43,7 +43,10 @@ export interface Stop {
   /** Set when delivered/failed. */
   completedAt?: string;
   failureReason?: FailureReason;
-  /** Proof of delivery. */
+  /**
+   * Proof of delivery: PATHS in the private `proofs` bucket
+   * (`<user_id>/<stop_id>/<file>`), not URLs. Display via `useProofUrl`.
+   */
   proofUrl?: string;
   signatureUrl?: string;
   /** GPS position + timestamp captured at the moment of delivery. */
