@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -19,6 +19,7 @@ import { haversine } from '@/utils/optimize';
 import { failureReasonMeta } from '@/utils/status';
 import type { FailureReason } from '@/types';
 import { colors, fonts, layout, radius, shadows, spacing } from '@/theme';
+import { showAlert } from '@/utils/dialog';
 
 const REASONS: FailureReason[] = ['absent', 'refus', 'adresse_invalide', 'autre'];
 const PEEK = 268; // visible panel height when collapsed
@@ -48,10 +49,16 @@ export default function ExecuteScreen() {
   // Track the device position to show the distance to the current stop.
   useEffect(() => {
     let sub: { remove: () => void } | null = null;
+    let unmounted = false;
     watchPosition(setUserPos).then((s) => {
-      sub = s;
+      // Left the screen before the watch started: stop it right away.
+      if (unmounted) s?.remove();
+      else sub = s;
     });
-    return () => sub?.remove();
+    return () => {
+      unmounted = true;
+      sub?.remove();
+    };
   }, []);
 
   const onOptimize = async () => {
@@ -86,7 +93,7 @@ export default function ExecuteScreen() {
   }, [id, total, current, finishTournee]);
 
   const onManualFinish = () => {
-    Alert.alert(
+    showAlert(
       'Terminer la tournée',
       remaining > 0 ? `Il reste ${remaining} arrêt(s) non livré(s). Terminer quand même ?` : 'Marquer la tournée comme terminée ?',
       [

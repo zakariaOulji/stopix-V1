@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button, Input, Screen } from '@/components';
 import { useAuthStore } from '@/stores';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
+import { showAlert } from '@/utils/dialog';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -36,7 +36,7 @@ export default function LoginScreen() {
       await login(email, password);
       router.replace('/(tabs)/dashboard');
     } catch (e) {
-      Alert.alert('Connexion impossible', e instanceof Error ? e.message : 'Vérifiez vos identifiants.');
+      showAlert('Connexion impossible', e instanceof Error ? e.message : 'Vérifiez vos identifiants.');
     }
   };
 
@@ -129,7 +129,7 @@ export default function LoginScreen() {
 function OAuthButton({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
   return (
     <Pressable
-      onPress={() => Alert.alert('Bientôt disponible', `La connexion ${label} arrive prochainement.`)}
+      onPress={() => showAlert('Bientôt disponible', `La connexion ${label} arrive prochainement.`)}
       style={({ pressed }) => [styles.oauthBtn, pressed && { opacity: 0.7 }]}
     >
       <Ionicons name={icon} size={20} color={colors.white} />

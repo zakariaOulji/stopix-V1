@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { ENV } from '@/config/env';
 import { supabase } from '@/api/supabase';
 import { authMock, fakeDelay } from '@/mocks';
@@ -96,6 +97,9 @@ export const authService = {
       email: payload.email,
       password: payload.password ?? '',
       options: {
+        // Web: bring the user back to this site after the confirmation link
+        // (must be listed in Supabase → Auth → URL Configuration → Redirect URLs).
+        emailRedirectTo: Platform.OS === 'web' ? window.location.origin : undefined,
         data: {
           full_name: payload.full_name,
           vehicle: payload.vehicle ?? 'moto',
@@ -124,5 +128,38 @@ export const authService = {
   async logout(): Promise<void> {
     if (ENV.USE_MOCKS) return;
     await supabase.auth.signOut();
+  },
+
+  /**
+   * Email a password-reset link. Supabase answers OK even for unknown emails
+   * (no account enumeration). On web the link brings the user back to
+   * /update-password (must be listed in Supabase → Auth → Redirect URLs);
+   * elsewhere Supabase uses the project's Site URL.
+   */
+  async requestPasswordReset(email: string): Promise<void> {
+    if (ENV.USE_MOCKS) {
+      await fakeDelay(1200);
+      return;
+    }
+    const redirectTo = Platform.OS === 'web' ? `${window.location.origin}/update-password` : undefined;
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+    if (error) throw new Error(error.message);
+  },
+
+  /** Set a new password for the session opened by the reset link. */
+  async updatePassword(password: string): Promise<void> {
+    if (ENV.USE_MOCKS) {
+      await fakeDelay(800);
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw new Error(error.message);
+  },
+
+  /** True when a session exists (e.g. opened by a recovery link). */
+  async hasSession(): Promise<boolean> {
+    if (ENV.USE_MOCKS) return true;
+    const { data } = await supabase.auth.getSession();
+    return !!data.session;
   },
 };

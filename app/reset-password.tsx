@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } fro
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Input, Screen } from '@/components';
-import { fakeDelay } from '@/mocks';
+import { authService } from '@/services';
 import { colors, fonts, layout, spacing } from '@/theme';
 
 export default function ResetPasswordScreen() {
@@ -20,9 +20,14 @@ export default function ResetPasswordScreen() {
     }
     setError(undefined);
     setLoading(true);
-    await fakeDelay(1200);
-    setLoading(false);
-    setSent(true);
+    try {
+      await authService.requestPasswordReset(email);
+      setSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Envoi impossible, réessayez.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -42,9 +47,10 @@ export default function ResetPasswordScreen() {
               </View>
               <Text style={[styles.title, styles.centered]}>Lien envoyé ✓</Text>
               <Text style={[styles.subtitle, styles.centered]}>
-                Un lien de réinitialisation a été envoyé à{'\n'}
-                <Text style={styles.email}>{email}</Text>.{'\n'}
-                Vérifiez votre boîte de réception.
+                Si un compte existe pour{'\n'}
+                <Text style={styles.email}>{email}</Text>,{'\n'}
+                un lien de réinitialisation vient d’être envoyé.{'\n'}
+                Pensez à vérifier les spams.
               </Text>
               <Button
                 label="Retour à la connexion"

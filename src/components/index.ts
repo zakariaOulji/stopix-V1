@@ -35,3 +35,6 @@ export type { ProofSheetProps } from './ProofSheet';
 export { SignaturePad } from './SignaturePad';
 export type { SignaturePadProps } from './SignaturePad';
 export { SyncErrorBanner } from './SyncErrorBanner';
+export { DialogHost } from './DialogHost';
+export { Stepper } from './Stepper';
+export type { StepperProps } from './Stepper';

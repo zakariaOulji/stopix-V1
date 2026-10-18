@@ -15,7 +15,8 @@ interface AuthState {
   /** Mocked login — ignores credentials, loads the demo driver after a delay. */
   login: (email?: string, password?: string) => Promise<void>;
   /** Mocked registration — merges payload onto the demo driver. */
-  register: (payload: RegisterPayload) => Promise<void>;
+  /** Resolves `false` when the account needs email confirmation (no session yet). */
+  register: (payload: RegisterPayload) => Promise<boolean>;
   logout: () => void;
   setHydrated: () => void;
   /** Restore an existing Supabase session on app start (no-op in mock mode). */
@@ -46,8 +47,14 @@ export const useAuthStore = create<AuthState>()(
         set({ isSubmitting: true });
         try {
           const { user, token } = await authService.register(payload);
+          if (!token) {
+            // Email confirmation enabled: no session until the link is clicked.
+            set({ isSubmitting: false });
+            return false;
+          }
           await setToken(token);
           set({ user, isAuthenticated: true, isSubmitting: false });
+          return true;
         } catch (err) {
           set({ isSubmitting: false });
           throw err;

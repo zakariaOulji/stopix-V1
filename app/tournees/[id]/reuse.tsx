@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, Screen, Spinner } from '@/components';
+import { Button, Screen, Spinner, Stepper } from '@/components';
 import { useTourneeStore } from '@/stores';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
+import { showAlert } from '@/utils/dialog';
 
 type Qty = { packages: number; vrac: number };
 
@@ -66,7 +67,7 @@ export default function ReuseTourneeScreen() {
       router.replace(`/tournees/${id}/execute`);
     } catch (e) {
       setLaunching(false);
-      Alert.alert('Relance impossible', e instanceof Error ? e.message : 'Réessayez.');
+      showAlert('Relance impossible', e instanceof Error ? e.message : 'Réessayez.');
     }
   };
 
@@ -120,23 +121,6 @@ export default function ReuseTourneeScreen() {
   );
 }
 
-function Stepper({ label, value, onChange }: { label: string; value: number; onChange: (n: number) => void }) {
-  return (
-    <View style={styles.stepperWrap}>
-      <Text style={styles.stepperLabel}>{label}</Text>
-      <View style={styles.stepper}>
-        <Pressable onPress={() => onChange(Math.max(0, value - 1))} style={styles.stepBtn} hitSlop={6}>
-          <Ionicons name="remove" size={18} color={colors.white} />
-        </Pressable>
-        <Text style={styles.stepValue}>{value}</Text>
-        <Pressable onPress={() => onChange(value + 1)} style={styles.stepBtn} hitSlop={6}>
-          <Ionicons name="add" size={18} color={colors.white} />
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 48, paddingHorizontal: layout.screenPadding - 6 },
   back: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
@@ -151,11 +135,6 @@ const styles = StyleSheet.create({
   recipient: { fontFamily: fonts.semibold, fontSize: 15, color: colors.white },
   address: { fontFamily: fonts.regular, fontSize: 13, color: colors.muted, marginTop: 2 },
   qtyRow: { flexDirection: 'row', gap: spacing.md },
-  stepperWrap: { flex: 1, gap: 4 },
-  stepperLabel: { fontFamily: fonts.medium, fontSize: 12, color: colors.muted, marginLeft: 2 },
-  stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceHigh, borderRadius: radius.sm, padding: 4 },
-  stepBtn: { width: 34, height: 34, borderRadius: radius.sm, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  stepValue: { fontFamily: fonts.heading, fontSize: 16, color: colors.white, minWidth: 24, textAlign: 'center' },
   empty: { paddingVertical: spacing.huge, alignItems: 'center' },
   emptyText: { fontFamily: fonts.regular, fontSize: 14, color: colors.muted, textAlign: 'center' },
   footer: { paddingHorizontal: layout.screenPadding, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background, gap: spacing.sm },

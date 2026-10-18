@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ENV } from '@/config/env';
 import { supabase } from '@/api/supabase';
@@ -25,6 +26,17 @@ async function toFileUri(content: string, mime: string, encoding: FileSystem.Enc
   return uri;
 }
 
+/**
+ * Web: expo-file-system does not exist, so build a Blob instead. Image picker
+ * uris are `blob:` / `data:` URLs there, which `fetch` can read.
+ */
+async function toBlob(source: ProofSource): Promise<Blob | null> {
+  if (source.text) return new Blob([source.text], { type: source.mime });
+  const url = source.uri ?? (source.base64 ? `data:${source.mime};base64,${source.base64}` : null);
+  if (!url) return null;
+  return (await fetch(url)).blob();
+}
+
 /** How long a signed proof URL stays valid (seconds). */
 const SIGNED_URL_TTL = 60 * 60;
 
@@ -38,8 +50,9 @@ export const storageService = {
    * table. The bucket policies only allow access under the caller's own
    * `<user_id>/` folder; use `getProofUrl` to display it.
    *
-   * Uses expo-file-system's native uploader (runs off the JS thread) instead of
-   * supabase-js `storage.upload`, which can hang on React Native.
+   * Native uses expo-file-system's uploader (runs off the JS thread) instead of
+   * supabase-js `storage.upload`, which can hang on React Native. Web has no
+   * file system: it uploads a Blob through supabase-js.
    */
   async uploadProof(stopId: string, source: ProofSource, kind: ProofKind): Promise<string | null> {
     if (ENV.USE_MOCKS) return `mock://proof/${stopId}/${kind}`;
@@ -47,12 +60,23 @@ export const storageService = {
     const session = (await supabase.auth.getSession()).data.session;
     if (!session) throw new Error('Upload impossible : utilisateur non connecté');
 
+    const path = `${session.user.id}/${stopId}/${kind}-${Date.now()}.${extFor(source.mime)}`;
+
+    if (Platform.OS === 'web') {
+      const blob = await toBlob(source);
+      if (!blob) return null;
+      const { error } = await supabase.storage
+        .from(BUCKET)
+        .upload(path, blob, { contentType: source.mime, upsert: true });
+      if (error) throw new Error(`Upload échoué : ${error.message}`);
+      return path;
+    }
+
     let fileUri = source.uri ?? null;
     if (!fileUri && source.base64) fileUri = await toFileUri(source.base64, source.mime, FileSystem.EncodingType.Base64);
     if (!fileUri && source.text) fileUri = await toFileUri(source.text, source.mime, FileSystem.EncodingType.UTF8);
     if (!fileUri) return null;
 
-    const path = `${session.user.id}/${stopId}/${kind}-${Date.now()}.${extFor(source.mime)}`;
     const baseUrl = ENV.SUPABASE_URL.trim();
     const anon = ENV.SUPABASE_ANON_KEY.trim();
 

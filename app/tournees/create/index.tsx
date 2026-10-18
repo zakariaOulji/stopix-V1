@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -29,6 +28,7 @@ import { useRoutePolyline } from '@/hooks/useRoutePolyline';
 import { pickFromLibrary, takePhoto, type PickedImage } from '@/utils/imagePicker';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
 import type { Stop } from '@/types';
+import { showAlert } from '@/utils/dialog';
 
 const STEPS = ['Adresses', 'Détails & ordre', 'Optimisation', 'Récapitulatif'];
 const CENTER = { latitude: 48.8566, longitude: 2.3522 };
@@ -143,7 +143,7 @@ export default function CreateTourneeScreen() {
     try {
       const deliveries = await aiService.extractAddresses(img?.base64 ?? '', img?.mimeType ?? '');
       if (deliveries.length === 0) {
-        Alert.alert('Aucune adresse trouvée', 'Réessaie avec une photo plus nette ou mieux cadrée.');
+        showAlert('Aucune adresse trouvée', 'Réessaie avec une photo plus nette ou mieux cadrée.');
         return;
       }
       // Geocode each extracted address to get real coordinates.
@@ -166,7 +166,7 @@ export default function CreateTourneeScreen() {
       setDrafts((prev) => [...prev, ...built]);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
-      Alert.alert('Import impossible', e instanceof Error ? e.message : 'Réessaie.');
+      showAlert('Import impossible', e instanceof Error ? e.message : 'Réessaie.');
     } finally {
       setScanning(false);
     }
@@ -177,7 +177,7 @@ export default function CreateTourneeScreen() {
       runExtraction(null);
       return;
     }
-    Alert.alert('Importer une feuille de route', 'Choisis la source de la photo', [
+    showAlert('Importer une feuille de route', 'Choisis la source de la photo', [
       {
         text: 'Prendre une photo',
         onPress: async () => {
@@ -247,7 +247,7 @@ export default function CreateTourneeScreen() {
         router.replace(`/tournees/${id}/execute`);
       } catch (e) {
         setLaunching(false);
-        Alert.alert('Création impossible', e instanceof Error ? e.message : 'Réessayez.');
+        showAlert('Création impossible', e instanceof Error ? e.message : 'Réessayez.');
       }
     }
   };

@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -19,6 +18,7 @@ import { useTourneeStore } from '@/stores';
 import type { GeocodeResult } from '@/services';
 import type { Stop } from '@/types';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
+import { showAlert } from '@/utils/dialog';
 
 interface Draft {
   key: string;
@@ -109,7 +109,7 @@ export default function EditTourneeScreen() {
 
   const save = async () => {
     if (drafts.length === 0) {
-      Alert.alert('Aucun stop', 'Ajoute au moins une adresse.');
+      showAlert('Aucun stop', 'Ajoute au moins une adresse.');
       return;
     }
     setSaving(true);
@@ -140,7 +140,7 @@ export default function EditTourneeScreen() {
       router.back();
     } catch (e) {
       setSaving(false);
-      Alert.alert('Enregistrement impossible', e instanceof Error ? e.message : 'Réessayez.');
+      showAlert('Enregistrement impossible', e instanceof Error ? e.message : 'Réessayez.');
     }
   };
 

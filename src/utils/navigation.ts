@@ -37,9 +37,21 @@ function urlsFor(provider: NavProvider, { lat, lng, label = '' }: NavTarget): Pr
   }
 }
 
+const isWeb = Platform.OS === 'web';
+
 /** Open navigation in the chosen provider, falling back to its web URL if the app is absent. */
 export async function openNavigation(provider: NavProvider, target: NavTarget): Promise<boolean> {
   const { app, web } = urlsFor(provider, target);
+  if (isWeb) {
+    // Custom schemes (comgooglemaps://, waze://) fail silently in a browser, so
+    // the native fallback never fires. The https links open the app when it is
+    // installed (universal / app links), the website otherwise.
+    const url = web ?? urlsFor('google', target).web!;
+    const tab = window.open(url, '_blank');
+    if (tab) tab.opener = null;
+    else window.location.href = url; // popup blocked: navigate in place
+    return true;
+  }
   try {
     await Linking.openURL(app);
     return true;
@@ -70,12 +82,17 @@ export const NAV_PROVIDERS: ProviderMeta[] = [
   ...(Platform.OS === 'ios'
     ? [{ provider: 'apple' as NavProvider, label: 'Plans', icon: 'map', color: '#34C759' }]
     : []),
-  {
-    provider: 'system',
-    label: Platform.OS === 'ios' ? 'App par défaut' : 'Autre app…',
-    icon: 'apps',
-    color: '#8A93A8',
-  },
+  // `geo:` / system chooser has no meaning in a browser.
+  ...(isWeb
+    ? []
+    : [
+        {
+          provider: 'system' as NavProvider,
+          label: Platform.OS === 'ios' ? 'App par défaut' : 'Autre app…',
+          icon: 'apps',
+          color: '#8A93A8',
+        },
+      ]),
 ];
 
 /** URL scheme used to probe whether a provider's app is installed. */
@@ -100,6 +117,8 @@ function probeScheme(provider: NavProvider): string | null {
  * so navigation always works — `openNavigation` then web-fallbacks if needed.
  */
 export async function getAvailableProviders(): Promise<ProviderMeta[]> {
+  // A browser cannot probe installed apps (canOpenURL always says yes).
+  if (isWeb) return NAV_PROVIDERS;
   const results = await Promise.all(
     NAV_PROVIDERS.map(async (p) => {
       const scheme = probeScheme(p.provider);

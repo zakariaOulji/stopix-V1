@@ -1,4 +1,5 @@
 import 'react-native-url-polyfill/auto';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { ENV } from '@/config/env';
@@ -26,6 +27,15 @@ if (!ENV.USE_MOCKS) {
   );
 }
 
+/**
+ * Web: whether the page was opened from a password-reset email. Read at import
+ * time, before supabase-js consumes the token and cleans the URL.
+ */
+export const OPENED_FROM_RECOVERY_LINK =
+  Platform.OS === 'web' &&
+  typeof window !== 'undefined' &&
+  /(?:^|[#&?])type=recovery(?:&|$)/.test(`${window.location.hash}&${window.location.search}`);
+
 export const supabase = createClient(
   resolvedUrl,
   ENV.SUPABASE_ANON_KEY.trim() || 'placeholder-anon-key',
@@ -34,7 +44,9 @@ export const supabase = createClient(
       storage: AsyncStorage,
       autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: false,
+      // Web: pick up the session from email confirmation / magic links
+      // (#access_token in the URL). Native has no URL to read.
+      detectSessionInUrl: Platform.OS === 'web',
     },
   },
 );

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -8,6 +8,7 @@ import { useAuthStore, useTourneeStore } from '@/stores';
 import { useStats } from '@/hooks/useStats';
 import { employmentMeta, vehicleMeta } from '@/utils/status';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
+import { showAlert } from '@/utils/dialog';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -18,14 +19,14 @@ export default function ProfileScreen() {
   const [notifications, setNotifications] = useState(true);
 
   const onResetDemo = () => {
-    Alert.alert('Réinitialiser la démo', 'Remettre les tournées et stops à leur état initial ?', [
+    showAlert('Réinitialiser la démo', 'Remettre les tournées et stops à leur état initial ?', [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Réinitialiser', style: 'destructive', onPress: () => resetMocks() },
     ]);
   };
 
   const onLogout = () => {
-    Alert.alert('Se déconnecter', 'Voulez-vous vraiment vous déconnecter ?', [
+    showAlert('Se déconnecter', 'Voulez-vous vraiment vous déconnecter ?', [
       { text: 'Annuler', style: 'cancel' },
       {
         text: 'Se déconnecter',
@@ -80,7 +81,7 @@ export default function ProfileScreen() {
           <Row
             icon={(user ? vehicleMeta[user.vehicle].icon : 'car-outline') as keyof typeof Ionicons.glyphMap}
             label="Véhicule"
-            onPress={() => Alert.alert('Véhicule', 'Modification du véhicule bientôt disponible.')}
+            onPress={() => showAlert('Véhicule', 'Modification du véhicule bientôt disponible.')}
           >
             <Text style={styles.rowValue}>{user ? vehicleMeta[user.vehicle].label : '—'}</Text>
             <Ionicons name="chevron-forward" size={18} color={colors.muted} />
@@ -89,7 +90,7 @@ export default function ProfileScreen() {
           <Row
             icon="shield-checkmark-outline"
             label="Confidentialité"
-            onPress={() => Alert.alert('Confidentialité', 'Paramètres de confidentialité bientôt disponibles.')}
+            onPress={() => showAlert('Confidentialité', 'Paramètres de confidentialité bientôt disponibles.')}
           >
             <Ionicons name="chevron-forward" size={18} color={colors.muted} />
           </Row>
@@ -97,7 +98,7 @@ export default function ProfileScreen() {
 
         <Text style={styles.sectionTitle}>Support</Text>
         <View style={styles.group}>
-          <Row icon="help-circle-outline" label="Aide & FAQ" onPress={() => Alert.alert('Aide', 'Centre d’aide bientôt disponible.')}>
+          <Row icon="help-circle-outline" label="Aide & FAQ" onPress={() => showAlert('Aide', 'Centre d’aide bientôt disponible.')}>
             <Ionicons name="chevron-forward" size={18} color={colors.muted} />
           </Row>
           <Divider />

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,6 +15,7 @@ import { useAuthStore } from '@/stores';
 import { employmentMeta, vehicleMeta } from '@/utils/status';
 import type { EmploymentType, VehicleType } from '@/types';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
+import { showAlert } from '@/utils/dialog';
 
 const STEPS = ['Vos infos', 'Votre activité', 'Finalisation'];
 const VEHICLES: VehicleType[] = ['velo', 'moto', 'voiture', 'camionnette'];
@@ -49,7 +49,7 @@ export default function RegisterScreen() {
   const goNext = async () => {
     if (step === 0 && !validateStep0()) return;
     if (step === 1 && (!employment || !vehicle)) {
-      Alert.alert('Champs manquants', 'Choisissez votre statut et votre véhicule.');
+      showAlert('Champs manquants', 'Choisissez votre statut et votre véhicule.');
       return;
     }
     if (step < 2) {
@@ -58,10 +58,16 @@ export default function RegisterScreen() {
     }
     // Final submit
     try {
-      await register({ full_name: fullName, email, password, employment, vehicle });
-      router.replace('/(tabs)/dashboard');
+      const signedIn = await register({ full_name: fullName, email, password, employment, vehicle });
+      if (signedIn) {
+        router.replace('/(tabs)/dashboard');
+        return;
+      }
+      showAlert('Confirme ton email', `Un lien de confirmation a été envoyé à ${email}. Clique dessus puis connecte-toi.`, [
+        { text: 'OK', onPress: () => router.replace('/login') },
+      ]);
     } catch (e) {
-      Alert.alert('Inscription impossible', e instanceof Error ? e.message : 'Réessayez.');
+      showAlert('Inscription impossible', e instanceof Error ? e.message : 'Réessayez.');
     }
   };
 
@@ -191,7 +197,7 @@ export default function RegisterScreen() {
               <View style={styles.photoBlock}>
                 <Avatar name={fullName || 'Livreur'} size={96} />
                 <Pressable
-                  onPress={() => Alert.alert('Bientôt disponible', 'L’ajout de photo arrive prochainement.')}
+                  onPress={() => showAlert('Bientôt disponible', 'L’ajout de photo arrive prochainement.')}
                   style={styles.photoBtn}
                 >
                   <Ionicons name="camera-outline" size={16} color={colors.primary} />

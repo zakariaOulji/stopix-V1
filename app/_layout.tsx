@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -13,9 +13,10 @@ import {
 } from '@expo-google-fonts/inter';
 import { useAuthStore, useTourneeStore } from '@/stores';
 import { initAuthToken } from '@/api';
+import { OPENED_FROM_RECOVERY_LINK } from '@/api/supabase';
 import { ENV } from '@/config/env';
 import { colors } from '@/theme';
-import { SyncErrorBanner } from '@/components';
+import { DialogHost, SyncErrorBanner } from '@/components';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -37,6 +38,13 @@ export default function RootLayout() {
     initAuthToken();
     useAuthStore.getState().restore();
   }, []);
+
+  // Reset link that landed on the Site URL instead of /update-password.
+  useEffect(() => {
+    if (ready && OPENED_FROM_RECOVERY_LINK && !window.location.pathname.startsWith('/update-password')) {
+      router.replace('/update-password');
+    }
+  }, [ready]);
 
   // In Supabase mode, load real tournées once authenticated.
   useEffect(() => {
@@ -76,6 +84,7 @@ export default function RootLayout() {
           <Stack.Screen name="login" />
           <Stack.Screen name="register" />
           <Stack.Screen name="reset-password" />
+          <Stack.Screen name="update-password" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="notifications" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="tournees/[id]/index" />
@@ -89,6 +98,7 @@ export default function RootLayout() {
           <Stack.Screen name="tournees/[id]/map" options={{ animation: 'slide_from_bottom' }} />
         </Stack>
         <SyncErrorBanner />
+        <DialogHost />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

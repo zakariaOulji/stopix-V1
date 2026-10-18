@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import { useRoutePolyline } from '@/hooks/useRoutePolyline';
 import { tourneeStatusMeta } from '@/utils/status';
 import { formatDuration, totalTourneeDuration } from '@/utils/format';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
+import { showAlert } from '@/utils/dialog';
 
 export default function TourneeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -36,9 +37,9 @@ export default function TourneeDetailScreen() {
       const res = await optimizeTournee(id);
       if (res.reordered) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert('Tournée optimisée', res.usedGps ? 'Ordre recalculé depuis ta position.' : 'Ordre recalculé.');
+        showAlert('Tournée optimisée', res.usedGps ? 'Ordre recalculé depuis ta position.' : 'Ordre recalculé.');
       } else {
-        Alert.alert('Rien à optimiser', 'Il faut au moins 2 arrêts restants.');
+        showAlert('Rien à optimiser', 'Il faut au moins 2 arrêts restants.');
       }
     } finally {
       setOptimizing(false);
@@ -47,7 +48,7 @@ export default function TourneeDetailScreen() {
 
   const onDelete = () => {
     if (!id) return;
-    Alert.alert('Supprimer la tournée', 'Cette action est définitive. Supprimer cette tournée et ses arrêts ?', [
+    showAlert('Supprimer la tournée', 'Cette action est définitive. Supprimer cette tournée et ses arrêts ?', [
       { text: 'Annuler', style: 'cancel' },
       {
         text: 'Supprimer',
