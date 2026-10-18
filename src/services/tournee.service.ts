@@ -19,6 +19,8 @@ export interface UpdateStopPayload {
   proofLat?: number;
   proofLng?: number;
   deliveredAt?: string;
+  returnVrac?: number;
+  returnBags?: number;
 }
 
 // ── Row types (snake_case) ────────────────────────────────────
@@ -58,15 +60,19 @@ interface StopRow {
   proof_lat: number | null;
   proof_lng: number | null;
   delivered_at: string | null;
+  return_vrac: number | null;
+  return_bags: number | null;
 }
 
-/** Proof columns cleared when a stop is reset or ends up not delivered. */
-const NO_PROOF_ROW = {
+/** Delivery data (proof + returns) cleared when a stop is reset or ends up not delivered. */
+const NO_DELIVERY_ROW = {
   proof_url: null,
   signature_url: null,
   proof_lat: null,
   proof_lng: null,
   delivered_at: null,
+  return_vrac: 0,
+  return_bags: 0,
 };
 
 /** supabase-js resolves with `{ error }` instead of rejecting: surface it for batched writes. */
@@ -102,6 +108,8 @@ function mapStop(r: StopRow): Stop {
     proofLat: r.proof_lat ?? undefined,
     proofLng: r.proof_lng ?? undefined,
     deliveredAt: r.delivered_at ?? undefined,
+    returnVrac: r.return_vrac ?? 0,
+    returnBags: r.return_bags ?? 0,
   };
 }
 
@@ -284,7 +292,7 @@ export const tourneeService = {
             status: 'pending',
             completed_at: null,
             failure_reason: null,
-            ...NO_PROOF_ROW,
+            ...NO_DELIVERY_ROW,
           })
           .eq('id', s.id),
       ),
@@ -327,13 +335,15 @@ export const tourneeService = {
         status: payload.status,
         failure_reason: payload.failureReason ?? null,
         completed_at: payload.completedAt ?? null,
-        // A stop that is not delivered must not keep a previous delivery proof.
-        ...(payload.status !== 'delivered' ? NO_PROOF_ROW : {}),
+        // A stop that is not delivered must not keep a previous delivery proof / returns.
+        ...(payload.status !== 'delivered' ? NO_DELIVERY_ROW : {}),
         ...(payload.proofUrl !== undefined ? { proof_url: payload.proofUrl } : {}),
         ...(payload.signatureUrl !== undefined ? { signature_url: payload.signatureUrl } : {}),
         ...(payload.proofLat !== undefined ? { proof_lat: payload.proofLat } : {}),
         ...(payload.proofLng !== undefined ? { proof_lng: payload.proofLng } : {}),
         ...(payload.deliveredAt !== undefined ? { delivered_at: payload.deliveredAt } : {}),
+        ...(payload.returnVrac !== undefined ? { return_vrac: payload.returnVrac } : {}),
+        ...(payload.returnBags !== undefined ? { return_bags: payload.returnBags } : {}),
       })
       .eq('id', stopId);
     if (error) throw new Error(error.message);

@@ -53,6 +53,9 @@ export interface Stop {
   proofLat?: number;
   proofLng?: number;
   deliveredAt?: string;
+  /** Returns collected from the customer at delivery. */
+  returnVrac?: number;
+  returnBags?: number;
 }
 
 export type TourneeStatus = 'planned' | 'active' | 'completed';

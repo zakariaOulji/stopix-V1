@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheet, Button, NavigationSheet, ProofSheet, StopsMap, SwipeConfirm } from '@/components';
+import type { DeliveryReturns } from '@/components';
 import { useTourneeStore } from '@/stores';
 import { useRoutePolyline } from '@/hooks/useRoutePolyline';
 import { watchPosition, type Coords } from '@/utils/location';
@@ -137,11 +138,11 @@ export default function ExecuteScreen() {
     if (current) setProofOpen(true);
   };
 
-  const onProofConfirmed = (proof: { proofUrl?: string; signatureUrl?: string }) => {
+  const onProofConfirmed = (returns: DeliveryReturns) => {
     if (current) {
       // Capture the delivery GPS (from the live-tracked position) + timestamp.
       markDelivered(current.id, {
-        ...proof,
+        ...returns,
         lat: userPos?.lat,
         lng: userPos?.lng,
         deliveredAt: new Date().toISOString(),

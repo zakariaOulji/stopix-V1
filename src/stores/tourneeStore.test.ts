@@ -57,4 +57,18 @@ describe('tourneeStore', () => {
     const reset = useTourneeStore.getState().stops.find((s) => s.id === stop.id)!;
     expect(reset.status).toBe('pending');
   });
+
+  it('records returns collected at delivery and clears them if the stop then fails', () => {
+    const stop = firstPending();
+
+    useTourneeStore.getState().markDelivered(stop.id, { returnVrac: 2, returnBags: 1 });
+    let updated = useTourneeStore.getState().stops.find((s) => s.id === stop.id)!;
+    expect(updated.returnVrac).toBe(2);
+    expect(updated.returnBags).toBe(1);
+
+    useTourneeStore.getState().markFailed(stop.id, 'absent');
+    updated = useTourneeStore.getState().stops.find((s) => s.id === stop.id)!;
+    expect(updated.returnVrac).toBe(0);
+    expect(updated.returnBags).toBe(0);
+  });
 });

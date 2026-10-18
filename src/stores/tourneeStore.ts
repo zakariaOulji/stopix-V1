@@ -61,7 +61,15 @@ interface TourneeState {
   nextStop: () => void;
   markDelivered: (
     stopId: string,
-    proof?: { proofUrl?: string; signatureUrl?: string; lat?: number; lng?: number; deliveredAt?: string },
+    proof?: {
+      proofUrl?: string;
+      signatureUrl?: string;
+      lat?: number;
+      lng?: number;
+      deliveredAt?: string;
+      returnVrac?: number;
+      returnBags?: number;
+    },
   ) => void;
   /** Attach proof URLs after a background upload finishes (stop already delivered). */
   attachProof: (stopId: string, proof: { proofUrl?: string; signatureUrl?: string }) => void;
@@ -174,6 +182,8 @@ export const useTourneeStore = create<TourneeState>()(
       signatureUrl: proof?.signatureUrl,
       proofLat: proof?.lat,
       proofLng: proof?.lng,
+      returnVrac: proof?.returnVrac ?? 0,
+      returnBags: proof?.returnBags ?? 0,
     };
     void tourneeService
       .updateStop(stopId, {
@@ -184,6 +194,8 @@ export const useTourneeStore = create<TourneeState>()(
         signatureUrl: proof?.signatureUrl,
         proofLat: proof?.lat,
         proofLng: proof?.lng,
+        returnVrac: proof?.returnVrac ?? 0,
+        returnBags: proof?.returnBags ?? 0,
       })
       .catch(syncFailed('Livraison non enregistrée'));
     set((state) => {
@@ -213,7 +225,7 @@ export const useTourneeStore = create<TourneeState>()(
       .updateStop(stopId, { status: 'failed', completedAt, failureReason: reason })
       .catch(syncFailed('Échec non enregistré'));
     set((state) => {
-      const stops = applyStatus(state.stops, stopId, 'failed', { ...NO_PROOF, completedAt, failureReason: reason });
+      const stops = applyStatus(state.stops, stopId, 'failed', { ...NO_DELIVERY, completedAt, failureReason: reason });
       return { stops, tournees: state.tournees.map((t) => recountTournee(t, stops)) };
     });
   },
@@ -221,7 +233,7 @@ export const useTourneeStore = create<TourneeState>()(
   skipStop: (stopId) => {
     void tourneeService.updateStop(stopId, { status: 'skipped' }).catch(syncFailed('Stop passé non enregistré'));
     set((state) => {
-      const stops = applyStatus(state.stops, stopId, 'skipped', NO_PROOF);
+      const stops = applyStatus(state.stops, stopId, 'skipped', NO_DELIVERY);
       return { stops, tournees: state.tournees.map((t) => recountTournee(t, stops)) };
     });
   },
@@ -255,7 +267,7 @@ export const useTourneeStore = create<TourneeState>()(
             status: 'pending' as const,
             completedAt: undefined,
             failureReason: undefined,
-            ...NO_PROOF,
+            ...NO_DELIVERY,
             packages: quantities[s.id]?.packages ?? s.packages,
             vrac: quantities[s.id]?.vrac ?? s.vrac,
           }
@@ -435,13 +447,15 @@ export const useTourneeStore = create<TourneeState>()(
   ),
 );
 
-/** Proof fields cleared when a stop is reset or ends up not delivered. */
-const NO_PROOF: Partial<Stop> = {
+/** Delivery data (proof + returns) cleared when a stop is reset or ends up not delivered. */
+const NO_DELIVERY: Partial<Stop> = {
   proofUrl: undefined,
   signatureUrl: undefined,
   proofLat: undefined,
   proofLng: undefined,
   deliveredAt: undefined,
+  returnVrac: 0,
+  returnBags: 0,
 };
 
 function applyStatus(

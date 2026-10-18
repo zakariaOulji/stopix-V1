@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import { BottomSheet } from './BottomSheet';
 import { Button } from './Button';
 import { SignaturePad } from './SignaturePad';
+import { Stepper } from './Stepper';
 import { storageService } from '@/services';
 import { takePhoto } from '@/utils/imagePicker';
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -15,20 +16,29 @@ export interface ProofSheetProps {
   onClose: () => void;
   stopId: string;
   recipient: string;
-  /** Marks the stop delivered immediately (no upload wait). */
-  onConfirmed: (proof: { proofUrl?: string; signatureUrl?: string }) => void;
+  /** Marks the stop delivered immediately (no upload wait), with the returns collected. */
+  onConfirmed: (delivery: DeliveryReturns) => void;
   /** Called later, once the background upload finishes, to attach the URLs. */
   onUploaded?: (stopId: string, proof: { proofUrl?: string; signatureUrl?: string }) => void;
+}
+
+export interface DeliveryReturns {
+  returnVrac: number;
+  returnBags: number;
 }
 
 export function ProofSheet({ visible, onClose, stopId, recipient, onConfirmed, onUploaded }: ProofSheetProps) {
   const [photo, setPhoto] = useState<{ uri: string; base64: string; mime: string } | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
   const [sigOpen, setSigOpen] = useState(false);
+  const [returnVrac, setReturnVrac] = useState(0);
+  const [returnBags, setReturnBags] = useState(0);
 
   const reset = () => {
     setPhoto(null);
     setSignature(null);
+    setReturnVrac(0);
+    setReturnBags(0);
   };
 
   const onTakePhoto = async () => {
@@ -46,7 +56,7 @@ export function ProofSheet({ visible, onClose, stopId, recipient, onConfirmed, o
     const p = photo;
     const s = signature;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onConfirmed({});
+    onConfirmed({ returnVrac, returnBags });
     reset();
     onClose();
 
@@ -63,7 +73,7 @@ export function ProofSheet({ visible, onClose, stopId, recipient, onConfirmed, o
   };
 
   const deliverWithout = () => {
-    onConfirmed({});
+    onConfirmed({ returnVrac, returnBags });
     reset();
     onClose();
   };
@@ -98,6 +108,12 @@ export function ProofSheet({ visible, onClose, stopId, recipient, onConfirmed, o
             )}
           </View>
         )}
+
+        <Text style={styles.sectionLabel}>Retours récupérés</Text>
+        <View style={styles.row}>
+          <Stepper label="Retour vrac" value={returnVrac} onChange={setReturnVrac} />
+          <Stepper label="Retour sacs" value={returnBags} onChange={setReturnBags} />
+        </View>
 
         <Button
           label="Confirmer la livraison"
@@ -153,6 +169,7 @@ const styles = StyleSheet.create({
   previews: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md },
   preview: { width: 80, height: 80, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
   sigPreview: { backgroundColor: colors.surface },
+  sectionLabel: { fontFamily: fonts.semibold, fontSize: 13, color: colors.white, marginTop: spacing.lg, marginBottom: spacing.sm },
   confirm: { marginTop: spacing.lg },
   skip: { alignItems: 'center', paddingVertical: spacing.md },
   skipText: { fontFamily: fonts.medium, fontSize: 14, color: colors.muted },

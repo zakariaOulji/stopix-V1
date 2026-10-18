@@ -31,7 +31,7 @@ export type { StopsMapProps } from './StopsMap';
 export { NavigationSheet } from './NavigationSheet';
 export type { NavigationSheetProps } from './NavigationSheet';
 export { ProofSheet } from './ProofSheet';
-export type { ProofSheetProps } from './ProofSheet';
+export type { DeliveryReturns, ProofSheetProps } from './ProofSheet';
 export { SignaturePad } from './SignaturePad';
 export type { SignaturePadProps } from './SignaturePad';
 export { SyncErrorBanner } from './SyncErrorBanner';

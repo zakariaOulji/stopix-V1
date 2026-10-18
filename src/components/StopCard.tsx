@@ -63,6 +63,19 @@ export function StopCard({ stop, onPress, active = false, showStatusBadge = true
               <Text style={styles.pkgText}>{stop.accessCode}</Text>
             </View>
           )}
+          {(!!stop.returnVrac || !!stop.returnBags) && (
+            <View style={styles.pkg}>
+              <Ionicons name="return-down-back" size={13} color={colors.warning} />
+              <Text style={styles.pkgText}>
+                {[
+                  stop.returnVrac ? `${stop.returnVrac} vrac` : null,
+                  stop.returnBags ? `${stop.returnBags} sac${stop.returnBags > 1 ? 's' : ''}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            </View>
+          )}
           {stop.proofUrl && <Ionicons name="camera" size={13} color={colors.primary} />}
           {stop.signatureUrl && <Ionicons name="create" size={13} color={colors.primary} />}
         </View>
