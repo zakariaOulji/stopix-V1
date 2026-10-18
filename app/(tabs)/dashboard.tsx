@@ -146,7 +146,12 @@ export default function DashboardScreen() {
         {/* Last tournee */}
         {lastDone && (
           <Animated.View entering={FadeInDown.duration(400).delay(260)} style={styles.section}>
-            <Text style={styles.sectionTitle}>Dernière tournée</Text>
+            <View style={styles.sectionHead}>
+              <Text style={[styles.sectionTitle, styles.sectionTitleInline]}>Dernière tournée</Text>
+              <Pressable onPress={() => router.push('/history')} hitSlop={8} accessibilityRole="link">
+                <Text style={styles.sectionLink}>Historique</Text>
+              </Pressable>
+            </View>
             <Card onPress={() => router.push(`/tournees/${lastDone.id}`)} style={styles.lastCard}>
               <View style={styles.lastIcon}>
                 <Ionicons name="checkmark-done-circle" size={24} color={colors.primary} />
@@ -154,7 +159,9 @@ export default function DashboardScreen() {
               <View style={styles.flex1}>
                 <Text style={styles.lastName} numberOfLines={1}>{lastDone.name}</Text>
                 <Text style={styles.lastMeta}>
-                  {lastDone.stopsCount} stops · 100% réussite · {lastDone.distanceKm} km
+                  {lastDone.stopsCount} stops ·{' '}
+                  {lastDone.stopsCount ? Math.round((100 * lastDone.deliveredCount) / lastDone.stopsCount) : 0}% livrés ·{' '}
+                  {lastDone.distanceKm} km
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.muted} />
@@ -217,6 +224,9 @@ const styles = StyleSheet.create({
   kpiGrid: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md },
   section: { marginTop: spacing.xl },
   sectionTitle: { fontFamily: fonts.heading, fontSize: 18, color: colors.white, marginBottom: spacing.md },
+  sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: spacing.md },
+  sectionTitleInline: { marginBottom: 0 },
+  sectionLink: { fontFamily: fonts.semibold, fontSize: 14, color: colors.primary },
   activeCard: { gap: spacing.lg },
   activeHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
   flex1: { flex: 1 },

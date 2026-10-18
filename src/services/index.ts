@@ -9,5 +9,7 @@ export { aiService } from './ai.service';
 export type { ExtractedDelivery } from './ai.service';
 export { storageService } from './storage.service';
 export type { ProofKind } from './storage.service';
+export { historyService } from './history.service';
+export type { HistoryFilter, HistoryPage } from './history.service';
 export { routeService } from './route.service';
 export type { RouteResult } from './route.service';

@@ -87,6 +87,7 @@ export default function RootLayout() {
           <Stack.Screen name="update-password" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="notifications" options={{ animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="history" />
           <Stack.Screen name="tournees/[id]/index" />
           <Stack.Screen
             name="tournees/[id]/execute"

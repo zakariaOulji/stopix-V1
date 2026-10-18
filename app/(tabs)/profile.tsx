@@ -66,6 +66,13 @@ export default function ProfileScreen() {
           <GlobalStat value={stats.totalDistanceKm.toLocaleString('fr-FR')} label="km" />
         </Animated.View>
 
+        <Text style={styles.sectionTitle}>Activité</Text>
+        <View style={styles.group}>
+          <Row icon="time-outline" label="Historique des livraisons" onPress={() => router.push('/history')}>
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          </Row>
+        </View>
+
         {/* Settings */}
         <Text style={styles.sectionTitle}>Réglages</Text>
         <View style={styles.group}>

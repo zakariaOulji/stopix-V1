@@ -58,6 +58,34 @@ export interface Stop {
   returnBags?: number;
 }
 
+/**
+ * One finished visit of a stop (delivered / failed / skipped), from the
+ * `deliveries` log. Survives tournée reuse and deletion.
+ */
+export interface DeliveryRecord {
+  id: string;
+  tourneeId?: string;
+  stopId?: string;
+  tourneeName: string;
+  recipient: string;
+  address: string;
+  city: string;
+  postalCode: string;
+  packages: number;
+  vrac: number;
+  status: Exclude<StopStatus, 'pending'>;
+  failureReason?: FailureReason;
+  /** ISO timestamp of the delivery / failure. */
+  happenedAt: string;
+  /** Paths in the private `proofs` bucket (see `useProofUrl`). */
+  proofUrl?: string;
+  signatureUrl?: string;
+  proofLat?: number;
+  proofLng?: number;
+  returnVrac: number;
+  returnBags: number;
+}
+
 export type TourneeStatus = 'planned' | 'active' | 'completed';
 
 export interface Tournee {
