@@ -14,7 +14,7 @@ Issu de l'analyse business / UX / fonctionnelle / sécurité / scalabilité du 2
 
 ## Semaine 1 (31 août – 6 sept.) — Preuve de livraison : vérifier / finir
 - [x] Vérifier que le schéma Supabase a bien les colonnes proof_url / signature_url / lat / lng / delivered_at côté `stops` (migration à écrire si pas encore fait en base, même si le code les référence déjà) — ✅ 6 oct. : manquaient proof_lat/proof_lng/delivered_at (ancienne version de la #5 appliquée), corrigé par `migration_6_proof_gps.sql`
-- [x] Policies RLS sur le bucket Supabase Storage des preuves — ✅ 6 oct. : bucket `proofs` + policies présents ; ✅ 19 oct. : bucket privé + accès limité au dossier `<user_id>/` (migration 7). Tests d'isolation A/B (`supabase/tests/`) à lancer.
+- [x] Policies RLS sur le bucket Supabase Storage des preuves — ✅ 6 oct. : bucket `proofs` + policies présents ; ✅ 19 oct. : bucket privé + accès limité au dossier `<user_id>/` (migration 7) ; isolation A/B vérifiée le 19 oct. (`supabase/tests/proofs_rls_test.sql` : 9/9 PASS).
 - [x] Vérifier le flux `ProofSheet` → `attachProof` → upload Storage → écriture `proof_url`/`signature_url` en base de bout en bout — ✅ 18 oct. : testé sur web (photo + signature)
 - [x] Capture GPS au moment de la confirmation — confirmer qu'elle est bien envoyée au serveur, pas seulement affichée localement — ✅ 6 oct. : proof_lat/proof_lng/delivered_at bien écrits en base
 - [ ] Tester sur device réel (pas seulement Expo Go web) : permissions caméra + localisation

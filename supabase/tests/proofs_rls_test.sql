@@ -1,88 +1,116 @@
 -- STOPIX — test d'isolation du bucket `proofs` (après migration_7)
--- À lancer dans Supabase → SQL Editor. Ne modifie rien : tout est annulé (rollback).
+-- À lancer dans Supabase → SQL Editor. Ne modifie rien : chaque écriture de
+-- test est annulée (sous-transaction), et la fonction de test est temporaire.
 --
--- Prérequis : deux comptes de test A et B, chacun ayant uploadé au moins une
--- preuve depuis l'app (pour que B ait des fichiers que A pourrait viser).
--- Remplace les deux UUID ci-dessous (Authentication → Users → User UID).
+-- Prérequis : deux comptes de test A et B, B ayant au moins une preuve
+-- uploadée depuis l'app (sinon le test ne prouve rien).
 --
--- Résultat attendu : uniquement des lignes « PASS » dans l'onglet Messages/Notices.
+-- Usage : remplace les deux UUID dans le SELECT tout en bas
+-- (Authentication → Users → User UID), puis lance tout le fichier.
+-- Résultat : un tableau, une ligne par test, colonne `etat` = PASS / FAIL.
+-- (Le SQL Editor n'affiche pas les RAISE NOTICE, d'où le tableau.)
 
-begin;
-
-do $$
+create or replace function pg_temp.proofs_rls_test(a uuid, b uuid)
+returns table (test text, etat text, detail text)
+language plpgsql
+as $$
 declare
-  a uuid := '00000000-0000-0000-0000-00000000000a';  -- ← UID de l'utilisateur A
-  b uuid := '00000000-0000-0000-0000-00000000000b';  -- ← UID de l'utilisateur B
   n int;
 begin
-  -- Pré-check (en tant que postgres) : B doit avoir des fichiers, sinon le test ne prouve rien.
+  -- Pré-checks, en tant que postgres
   select count(*) into n from storage.objects
   where bucket_id = 'proofs' and (storage.foldername(name))[1] = b::text;
-  if n = 0 then
-    raise exception 'B n''a aucun fichier dans proofs : fais une livraison avec photo depuis le compte B d''abord';
-  end if;
-  raise notice 'B possède % fichier(s) dans proofs', n;
+  test := 'Pré-requis : B a des fichiers'; etat := case when n > 0 then 'PASS' else 'FAIL' end;
+  detail := n || ' fichier(s) de B' || case when n = 0 then ' — fais une livraison avec photo depuis B' else '' end;
+  return next;
 
-  -- Bucket privé
-  if (select public from storage.buckets where id = 'proofs') then
-    raise notice 'FAIL bucket proofs encore public';
-  else
-    raise notice 'PASS bucket proofs privé';
-  end if;
+  select count(*) into n from storage.buckets where id = 'proofs' and not public;
+  test := 'Bucket proofs privé'; etat := case when n = 1 then 'PASS' else 'FAIL' end; detail := null;
+  return next;
 
-  -- On devient A
-  execute 'set local role authenticated';
+  -- On devient A pour la suite
+  perform set_config('role', 'authenticated', true);
   perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
 
-  -- 1. A ne voit aucun fichier de B
+  -- 1. Lecture des fichiers de B
   select count(*) into n from storage.objects
   where bucket_id = 'proofs' and (storage.foldername(name))[1] = b::text;
-  raise notice '% A lit les fichiers de B : % visible(s)', case when n = 0 then 'PASS' else 'FAIL' end, n;
+  test := 'A ne voit pas les fichiers de B'; etat := case when n = 0 then 'PASS' else 'FAIL' end;
+  detail := n || ' visible(s)'; return next;
 
-  -- 2. A ne voit que son propre dossier
+  -- 2. A ne voit que son dossier
   select count(*) into n from storage.objects
   where bucket_id = 'proofs' and (storage.foldername(name))[1] <> a::text;
-  raise notice '% A voit des fichiers hors de son dossier : %', case when n = 0 then 'PASS' else 'FAIL' end, n;
+  test := 'A ne voit rien hors de son dossier'; etat := case when n = 0 then 'PASS' else 'FAIL' end;
+  detail := n || ' visible(s)'; return next;
 
-  -- 3. A ne peut pas écrire dans le dossier de B
+  -- 3. Écriture dans le dossier de B
+  test := 'A ne peut pas écrire chez B';
   begin
     insert into storage.objects (bucket_id, name) values ('proofs', b::text || '/stop-test/hack.jpg');
-    raise notice 'FAIL A a pu créer un fichier dans le dossier de B';
-  exception when insufficient_privilege then
-    raise notice 'PASS A ne peut pas écrire dans le dossier de B';
+    raise exception using errcode = 'P0001', message = 'undo';
+  exception
+    when insufficient_privilege then etat := 'PASS'; detail := 'refusé par RLS';
+    when sqlstate 'P0001' then etat := 'FAIL'; detail := 'insert accepté (annulé)';
+    when others then etat := '?'; detail := SQLERRM;
   end;
+  return next;
 
-  -- 4. A ne peut pas écrire à la racine du bucket (ancien format <stop_id>/...)
+  -- 4. Écriture hors de tout dossier utilisateur (ancien format <stop_id>/…)
+  test := 'A ne peut pas écrire hors de son dossier';
   begin
     insert into storage.objects (bucket_id, name) values ('proofs', 'stop-test/hack.jpg');
-    raise notice 'FAIL A a pu écrire hors de son dossier';
-  exception when insufficient_privilege then
-    raise notice 'PASS A ne peut pas écrire hors de son dossier';
+    raise exception using errcode = 'P0001', message = 'undo';
+  exception
+    when insufficient_privilege then etat := 'PASS'; detail := 'refusé par RLS';
+    when sqlstate 'P0001' then etat := 'FAIL'; detail := 'insert accepté (annulé)';
+    when others then etat := '?'; detail := SQLERRM;
   end;
+  return next;
 
-  -- 5. A ne peut pas modifier (renommer / déplacer) un fichier de B
-  update storage.objects set name = a::text || '/vole.jpg'
-  where bucket_id = 'proofs' and (storage.foldername(name))[1] = b::text;
-  get diagnostics n = row_count;
-  raise notice '% A modifie les fichiers de B : % ligne(s)', case when n = 0 then 'PASS' else 'FAIL' end, n;
+  -- 5. Modification / déplacement d'un fichier de B
+  test := 'A ne peut pas modifier les fichiers de B';
+  begin
+    update storage.objects set name = a::text || '/vole.jpg'
+    where bucket_id = 'proofs' and (storage.foldername(name))[1] = b::text;
+    get diagnostics n = row_count;
+    raise exception using errcode = 'P0001', message = 'undo';
+  exception
+    when sqlstate 'P0001' then
+      etat := case when n = 0 then 'PASS' else 'FAIL' end; detail := n || ' ligne(s) modifiée(s)';
+    when others then etat := '?'; detail := SQLERRM;
+  end;
+  return next;
 
-  -- 6. A ne peut pas déplacer son propre fichier vers le dossier de B
+  -- 6. Déplacement d'un de ses fichiers vers le dossier de B
+  test := 'A ne peut pas déplacer un fichier chez B';
   begin
     insert into storage.objects (bucket_id, name) values ('proofs', a::text || '/stop-test/mien.jpg');
     update storage.objects set name = b::text || '/stop-test/mien.jpg'
     where bucket_id = 'proofs' and name = a::text || '/stop-test/mien.jpg';
-    raise notice 'FAIL A a pu déplacer un fichier vers le dossier de B';
-  exception when insufficient_privilege then
-    raise notice 'PASS A ne peut pas déplacer un fichier vers le dossier de B';
+    raise exception using errcode = 'P0001', message = 'undo';
+  exception
+    when insufficient_privilege then etat := 'PASS'; detail := 'refusé par RLS';
+    when sqlstate 'P0001' then etat := 'FAIL'; detail := 'déplacement accepté (annulé)';
+    when others then etat := '?'; detail := SQLERRM;
   end;
+  return next;
 
-  -- 7. Contrôle positif : A peut écrire dans son propre dossier
+  -- 7. Contrôle positif : écriture dans son propre dossier
+  test := 'A peut écrire dans son dossier (contrôle)';
   begin
     insert into storage.objects (bucket_id, name) values ('proofs', a::text || '/stop-test/ok.jpg');
-    raise notice 'PASS A peut écrire dans son propre dossier';
-  exception when insufficient_privilege then
-    raise notice 'FAIL A ne peut pas écrire dans son propre dossier (policy trop stricte)';
+    raise exception using errcode = 'P0001', message = 'undo';
+  exception
+    when sqlstate 'P0001' then etat := 'PASS'; detail := 'accepté (annulé)';
+    when insufficient_privilege then etat := 'FAIL'; detail := 'refusé : policy trop stricte';
+    when others then etat := '?'; detail := SQLERRM;
   end;
-end $$;
+  return next;
 
-rollback;
+  perform set_config('role', 'postgres', true);
+end;
+$$;
+
+--                              ↓ UID de A                              ↓ UID de B
+select * from pg_temp.proofs_rls_test('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000000000b');
