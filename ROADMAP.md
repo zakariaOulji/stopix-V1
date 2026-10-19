@@ -4,6 +4,8 @@ Issu de l'analyse business / UX / fonctionnelle / sécurité / scalabilité du 2
 
 **Mise à jour du 2 sept. 2026** : en comparant ce plan au dépôt local (branche `zakaria/add/photoIa`), la preuve de livraison (photo + signature + géolocalisation, via un nouveau composant `ProofSheet` et `attachProof` dans le store) est **déjà en cours d'implémentation**, non committée. La Semaine 1 ci-dessous est donc à vérifier/finir plutôt qu'à démarrer de zéro — ajuste les cases cochées en conséquence.
 
+**Mise à jour du 19 oct. 2026** : le calendrier a glissé (semaines 1–2 encore partiellement ouvertes). Travail fait depuis le 6 oct., hors plan initial : bucket de preuves privé (migration 7), passage en web app (voir `WEB_MIGRATION.md`, phase 1 terminée et testée), retours vrac/sacs à la livraison (migration 8), historique des livraisons (migration 9). Migrations 1 à 9 appliquées en base. Suite proposée : verrous sécurité de la semaine 2 → mise en ligne web (phase 2) → fiabilité terrain (semaines 3–4) → produit (semaines 5–7).
+
 ## Ordre de priorité (ne pas changer)
 
 1. **Bloquant avant utilisateurs réels** — la preuve de livraison est l'argument produit n°1 du document de vision, elle doit être solide avant tout le reste.
@@ -12,17 +14,17 @@ Issu de l'analyse business / UX / fonctionnelle / sécurité / scalabilité du 2
 
 ## Semaine 1 (31 août – 6 sept.) — Preuve de livraison : vérifier / finir
 - [x] Vérifier que le schéma Supabase a bien les colonnes proof_url / signature_url / lat / lng / delivered_at côté `stops` (migration à écrire si pas encore fait en base, même si le code les référence déjà) — ✅ 6 oct. : manquaient proof_lat/proof_lng/delivered_at (ancienne version de la #5 appliquée), corrigé par `migration_6_proof_gps.sql`
-- [x] Policies RLS sur le bucket Supabase Storage des preuves — ✅ 6 oct. : bucket `proofs` + policies présents (lecture publique à durcir, cf. sécurité)
-- [ ] Vérifier le flux `ProofSheet` → `attachProof` → upload Storage → écriture `proof_url`/`signature_url` en base de bout en bout
+- [x] Policies RLS sur le bucket Supabase Storage des preuves — ✅ 6 oct. : bucket `proofs` + policies présents ; ✅ 19 oct. : bucket privé + accès limité au dossier `<user_id>/` (migration 7). Tests d'isolation A/B (`supabase/tests/`) à lancer.
+- [x] Vérifier le flux `ProofSheet` → `attachProof` → upload Storage → écriture `proof_url`/`signature_url` en base de bout en bout — ✅ 18 oct. : testé sur web (photo + signature)
 - [x] Capture GPS au moment de la confirmation — confirmer qu'elle est bien envoyée au serveur, pas seulement affichée localement — ✅ 6 oct. : proof_lat/proof_lng/delivered_at bien écrits en base
 - [ ] Tester sur device réel (pas seulement Expo Go web) : permissions caméra + localisation
 
 ## Semaine 2 (7 – 13 sept.) — Clôture preuve de livraison + verrous sécurité
-- [ ] Afficher la preuve (photo + signature + heure + GPS) dans le détail de tournée
+- [x] Afficher la preuve (photo + signature + heure + GPS) — ✅ 18 oct. : dans la fiche détail de l'historique des livraisons (`app/history.tsx`), pas dans le détail de tournée
 - [ ] Rate limiting sur les edge functions `geocode` + `extract-addresses` (compteur par utilisateur/jour)
 - [ ] Purger `.env` de l'historique git + rotation de la clé Supabase + `.gitignore`
 - [ ] Durcir la politique de mot de passe côté projet Supabase de production (8+ caractères)
-- [ ] Committer le travail en cours par petits commits propres (le diff actuel est trop gros pour une seule review)
+- [x] Committer le travail en cours par petits commits propres — ✅ 18 oct. : un commit par fonctionnalité (sécurité preuves, web phase 1, retours, historique)
 
 ## Semaine 3 (14 – 20 sept.) — Test de charge, clôture du bloquant
 - [ ] Script de charge k6 : login → tournées → confirmation d'arrêt → `get_stats`
