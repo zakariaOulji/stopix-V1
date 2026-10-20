@@ -6,18 +6,33 @@ export interface Coords {
   lng: number;
 }
 
+/** Give up on the GPS after this long (permission prompt left unanswered, no fix indoors…). */
+const POSITION_TIMEOUT_MS = 10_000;
+
 /**
- * Returns the device's current position, or null if permission is denied or it
- * can't be obtained. Used as the start point for route optimization.
+ * Returns the device's current position, or null if permission is denied, it
+ * can't be obtained, or it takes longer than POSITION_TIMEOUT_MS. Used as the
+ * start point for route optimization: callers carry on without a position.
  */
 export async function getCurrentPosition(): Promise<Coords | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), POSITION_TIMEOUT_MS);
+  });
+  const lookup = (async (): Promise<Coords | null> => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return null;
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    } catch {
+      return null;
+    }
+  })();
   try {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return null;
-    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    return { lat: pos.coords.latitude, lng: pos.coords.longitude };
-  } catch {
-    return null;
+    return await Promise.race([lookup, timeout]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
