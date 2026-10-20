@@ -6,7 +6,18 @@
 //   { action: "details", placeId }     -> { address, lat, lng, postalCode, city }
 //   { action: "geocode", query }       -> { address, lat, lng, postalCode, city } | {}
 //
+//   { action: "directions", points }  -> { polyline, distanceKm, durationMin }
+//
+// Optional `sessionToken` on autocomplete + details: groups the suggestions of
+// one address search into a single Google session (suggestions not billed
+// per keystroke when the session ends with a Details call).
+//
+// Quota (public.api_limits, migration_10): autocomplete = 1 `autocomplete`,
+// details / geocode = 1 `maps`, directions = 1 `maps` per Google request (25 points each).
+//
 // Secret required:  GOOGLE_PLACES_KEY  (Google Cloud key with Places API + Geocoding API enabled)
+
+import { checkQuota } from '../_shared/quota.ts';
 
 const KEY = Deno.env.get('GOOGLE_PLACES_KEY') ?? '';
 
@@ -64,13 +75,16 @@ Deno.serve(async (req) => {
   if (!KEY) return json({ error: 'GOOGLE_PLACES_KEY not set' }, 500);
 
   try {
-    const { action, query, placeId, points } = await req.json();
+    const { action, query, placeId, points, sessionToken } = await req.json();
+    const session = typeof sessionToken === 'string' && sessionToken ? `&sessiontoken=${encodeURIComponent(sessionToken)}` : '';
 
     if (action === 'autocomplete') {
       if (!query || query.trim().length < 3) return json({ predictions: [] });
+      const refused = await checkQuota(req, 'autocomplete', 1, corsHeaders);
+      if (refused) return refused;
       const url =
         `https://maps.googleapis.com/maps/api/place/autocomplete/json` +
-        `?input=${encodeURIComponent(query)}&key=${KEY}&language=fr&types=address`;
+        `?input=${encodeURIComponent(query)}&key=${KEY}&language=fr&types=address${session}`;
       const res = await fetch(url);
       const data = await res.json();
       const predictions = (data.predictions ?? []).map((p: { description: string; place_id: string }) => ({
@@ -82,10 +96,12 @@ Deno.serve(async (req) => {
 
     if (action === 'details') {
       if (!placeId) return json({ error: 'placeId required' }, 400);
+      const refused = await checkQuota(req, 'maps', 1, corsHeaders);
+      if (refused) return refused;
       const url =
         `https://maps.googleapis.com/maps/api/place/details/json` +
         `?place_id=${encodeURIComponent(placeId)}&key=${KEY}&language=fr` +
-        `&fields=geometry,address_components,formatted_address`;
+        `&fields=geometry,address_components,formatted_address${session}`;
       const res = await fetch(url);
       const data = await res.json();
       const r = data.result;
@@ -101,6 +117,8 @@ Deno.serve(async (req) => {
 
     if (action === 'geocode') {
       if (!query) return json({});
+      const refused = await checkQuota(req, 'maps', 1, corsHeaders);
+      if (refused) return refused;
       const url =
         `https://maps.googleapis.com/maps/api/geocode/json` +
         `?address=${encodeURIComponent(query)}&key=${KEY}&language=fr`;
@@ -123,6 +141,9 @@ Deno.serve(async (req) => {
 
       // Google Directions allows ~25 points per request -> chunk with 1-point overlap.
       const CHUNK = 25;
+      const requests = Math.ceil((pts.length - 1) / (CHUNK - 1));
+      const refused = await checkQuota(req, 'maps', requests, corsHeaders);
+      if (refused) return refused;
       const all: { lat: number; lng: number }[] = [];
       let meters = 0;
       let seconds = 0;

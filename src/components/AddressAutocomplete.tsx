@@ -1,7 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { geocodeService, type AddressPrediction, type GeocodeResult } from '@/services';
+import {
+  geocodeService,
+  newPlacesSession,
+  QuotaExceededError,
+  type AddressPrediction,
+  type GeocodeResult,
+} from '@/services';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
 
 export interface AddressAutocompleteProps {
@@ -15,7 +21,15 @@ export function AddressAutocomplete({ onPick, placeholder = 'Ajouter une adresse
   const [preds, setPreds] = useState<AddressPrediction[]>([]);
   const [loading, setLoading] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [limitMessage, setLimitMessage] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** One Google Places session per address search (reset once an address is picked). */
+  const session = useRef<string | null>(null);
+
+  const onLimit = (e: unknown) => {
+    if (e instanceof QuotaExceededError) setLimitMessage(e.message);
+    else throw e;
+  };
 
   useEffect(() => {
     if (text.trim().length < 3) {
@@ -25,10 +39,16 @@ export function AddressAutocomplete({ onPick, placeholder = 'Ajouter une adresse
     }
     setLoading(true);
     if (timer.current) clearTimeout(timer.current);
+    session.current ??= newPlacesSession();
     timer.current = setTimeout(async () => {
-      const p = await geocodeService.autocomplete(text);
-      setPreds(p);
-      setLoading(false);
+      try {
+        setPreds(await geocodeService.autocomplete(text, session.current ?? undefined));
+      } catch (e) {
+        setPreds([]);
+        onLimit(e);
+      } finally {
+        setLoading(false);
+      }
     }, 320);
     return () => {
       if (timer.current) clearTimeout(timer.current);
@@ -37,8 +57,15 @@ export function AddressAutocomplete({ onPick, placeholder = 'Ajouter une adresse
 
   const pick = async (pred: AddressPrediction) => {
     setResolving(true);
-    const r = await geocodeService.details(pred.placeId, pred.description);
-    setResolving(false);
+    let r: GeocodeResult | null = null;
+    try {
+      r = await geocodeService.details(pred.placeId, pred.description, session.current ?? undefined);
+      session.current = null; // Details closes the Google session
+    } catch (e) {
+      onLimit(e);
+    } finally {
+      setResolving(false);
+    }
     if (r) {
       onPick(r);
       setText('');
@@ -49,8 +76,14 @@ export function AddressAutocomplete({ onPick, placeholder = 'Ajouter une adresse
   const submitManual = async () => {
     if (!text.trim()) return;
     setResolving(true);
-    const r = await geocodeService.geocode(text);
-    setResolving(false);
+    let r: GeocodeResult | null = null;
+    try {
+      r = await geocodeService.geocode(text);
+    } catch (e) {
+      onLimit(e);
+    } finally {
+      setResolving(false);
+    }
     if (r) {
       onPick(r);
       setText('');
@@ -80,6 +113,13 @@ export function AddressAutocomplete({ onPick, placeholder = 'Ajouter une adresse
           </Pressable>
         )}
       </View>
+
+      {!!limitMessage && (
+        <View style={styles.limit} accessibilityRole="alert">
+          <Ionicons name="alert-circle-outline" size={16} color={colors.warning} />
+          <Text style={styles.limitText}>{limitMessage}</Text>
+        </View>
+      )}
 
       {preds.length > 0 && (
         <View style={styles.dropdown}>
@@ -123,4 +163,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.md },
   rowPressed: { backgroundColor: colors.surface },
   rowText: { flex: 1, fontFamily: fonts.medium, fontSize: 14, color: colors.white },
+  limit: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginTop: spacing.sm, paddingHorizontal: spacing.xs },
+  limitText: { flex: 1, fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.warning },
 });

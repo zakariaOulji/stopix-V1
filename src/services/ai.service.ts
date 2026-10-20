@@ -1,5 +1,6 @@
 import { ENV } from '@/config/env';
 import { supabase } from '@/api/supabase';
+import { toFunctionError } from './functionError';
 
 export interface ExtractedDelivery {
   address: string;
@@ -22,7 +23,7 @@ export const aiService = {
     const { data, error } = await supabase.functions.invoke('extract-addresses', {
       body: { imageBase64, mimeType },
     });
-    if (error) throw new Error(error.message);
+    if (error) throw await toFunctionError(error);
     if (data?.error) throw new Error(data.error);
     return (data?.deliveries ?? []) as ExtractedDelivery[];
   },

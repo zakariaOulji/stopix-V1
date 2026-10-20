@@ -1,5 +1,6 @@
 import { ENV } from '@/config/env';
 import { supabase } from '@/api/supabase';
+import { QuotaExceededError, toFunctionError } from './functionError';
 
 export interface AddressPrediction {
   description: string;
@@ -30,37 +31,63 @@ function mockGeocode(text: string): GeocodeResult {
   };
 }
 
+/** Rethrow quota / auth refusals; any other failure keeps the old "no result" behaviour. */
+async function rethrowQuota(error: unknown): Promise<void> {
+  const e = await toFunctionError(error);
+  if (e instanceof QuotaExceededError) throw e;
+}
+
+/** Unique id grouping the autocomplete calls of one address search (Google session). */
+export function newPlacesSession(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 export const geocodeService = {
-  /** Address suggestions as the user types. */
-  async autocomplete(query: string): Promise<AddressPrediction[]> {
+  /**
+   * Address suggestions as the user types. Pass the same `sessionToken` for one
+   * search and to the final `details` call: Google then bills one session
+   * instead of every keystroke. Throws QuotaExceededError on daily limit.
+   */
+  async autocomplete(query: string, sessionToken?: string): Promise<AddressPrediction[]> {
     if (query.trim().length < 3) return [];
     if (ENV.USE_MOCKS) return [{ description: query, placeId: `mock:${query}` }];
     const { data, error } = await supabase.functions.invoke('geocode', {
-      body: { action: 'autocomplete', query },
+      body: { action: 'autocomplete', query, sessionToken },
     });
-    if (error) return [];
+    if (error) {
+      await rethrowQuota(error);
+      return [];
+    }
     return (data?.predictions ?? []) as AddressPrediction[];
   },
 
-  /** Resolve a selected prediction into full coordinates. */
-  async details(placeId: string, fallbackText = ''): Promise<GeocodeResult | null> {
+  /** Resolve a selected prediction into full coordinates (closes the session). */
+  async details(placeId: string, fallbackText = '', sessionToken?: string): Promise<GeocodeResult | null> {
     if (ENV.USE_MOCKS || placeId.startsWith('mock:')) {
       return mockGeocode(placeId.startsWith('mock:') ? placeId.slice(5) : fallbackText);
     }
     const { data, error } = await supabase.functions.invoke('geocode', {
-      body: { action: 'details', placeId },
+      body: { action: 'details', placeId, sessionToken },
     });
-    if (error || !data?.lat) return null;
+    if (error) {
+      await rethrowQuota(error);
+      return null;
+    }
+    if (!data?.lat) return null;
     return data as GeocodeResult;
   },
 
-  /** Forward-geocode free text (when no suggestion was picked). */
+  /** Forward-geocode free text (when no suggestion was picked). Throws QuotaExceededError on daily limit. */
   async geocode(query: string): Promise<GeocodeResult | null> {
     if (ENV.USE_MOCKS) return mockGeocode(query);
     const { data, error } = await supabase.functions.invoke('geocode', {
       body: { action: 'geocode', query },
     });
-    if (error || !data?.lat) return null;
+    if (error) {
+      await rethrowQuota(error);
+      return null;
+    }
+    if (!data?.lat) return null;
     return data as GeocodeResult;
   },
 };

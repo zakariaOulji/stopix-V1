@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AddressAutocomplete, Button, Input, Screen, StopCard, StopsMap } from '@/components';
 import { useTourneeStore } from '@/stores';
 import { fakeDelay } from '@/mocks';
-import { aiService, geocodeService, type GeocodeResult } from '@/services';
+import { aiService, geocodeService, QuotaExceededError, type GeocodeResult } from '@/services';
 import { ENV } from '@/config/env';
 import { optimizeRoute, type LatLng } from '@/utils/optimize';
 import { getCurrentPosition } from '@/utils/location';
@@ -146,10 +146,20 @@ export default function CreateTourneeScreen() {
         showAlert('Aucune adresse trouvée', 'Réessaie avec une photo plus nette ou mieux cadrée.');
         return;
       }
-      // Geocode each extracted address to get real coordinates.
+      // Geocode each extracted address to get real coordinates. If the daily
+      // limit is hit midway, keep the remaining addresses without coordinates.
       const built: StopDraft[] = [];
+      let limitMessage: string | null = null;
       for (const d of deliveries) {
-        const geo = await geocodeService.geocode(d.address);
+        let geo: Awaited<ReturnType<typeof geocodeService.geocode>> = null;
+        if (!limitMessage) {
+          try {
+            geo = await geocodeService.geocode(d.address);
+          } catch (e) {
+            if (!(e instanceof QuotaExceededError)) throw e;
+            limitMessage = e.message;
+          }
+        }
         built.push({
           ...baseDraft(),
           address: geo?.address ?? d.address,
@@ -164,7 +174,13 @@ export default function CreateTourneeScreen() {
         });
       }
       setDrafts((prev) => [...prev, ...built]);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (limitMessage) {
+        showAlert('Adresses non localisées', `${limitMessage}
+
+Les adresses restantes ont été ajoutées sans position.`);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
     } catch (e) {
       showAlert('Import impossible', e instanceof Error ? e.message : 'Réessaie.');
     } finally {

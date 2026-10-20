@@ -44,3 +44,35 @@ Extrait les adresses (+ destinataire / téléphone / colis / vrac) d'une photo d
 - Côté Google Cloud, active **Places API** + **Geocoding API** + **Directions API** sur la clé.
   (La fonction `geocode` gère l'autocomplétion, le géocodage ET le tracé d'itinéraire.)
 - **Après chaque modif du code de la fonction, redéploie** : `npx supabase functions deploy geocode`.
+
+## Limites d'usage (migration 10)
+
+Les deux fonctions consomment un quota **par livreur et global, par jour** (fuseau Europe/Brussels) avant d'appeler OpenAI / Google. Un appel sans utilisateur connecté (clé anon seule) est refusé (401), un quota atteint renvoie 429.
+
+Ordre de mise en place :
+
+1. Lancer `supabase/migration_10_usage_limits.sql` dans le SQL Editor (crée `api_limits`, `api_usage`, `api_usage_global`, `consume_quota`).
+2. Redéployer les deux fonctions (le code partagé `_shared/quota.ts` est embarqué automatiquement) :
+   ```bash
+   npx supabase functions deploy geocode
+   npx supabase functions deploy extract-addresses
+   ```
+3. Vérifier avec `supabase/tests/quota_test.sql` (tableau PASS/FAIL, ne modifie rien).
+
+Régler les limites sans redéployer :
+
+```sql
+select * from public.api_limits;
+update public.api_limits set per_user_daily = 30 where kind = 'ai_extract';
+```
+
+Voir la consommation du jour :
+
+```sql
+select u.kind, p.email, u.count
+from public.api_usage u join public.profiles p on p.id = u.user_id
+where u.day = (now() at time zone 'Europe/Brussels')::date
+order by u.kind, u.count desc;
+```
+
+Garde-fous indépendants, à poser aussi : limite de budget mensuelle dans le dashboard OpenAI, quotas journaliers par API + alerte de budget dans Google Cloud.

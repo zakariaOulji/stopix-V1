@@ -6,6 +6,12 @@
 // Returns: { deliveries: [{ address, recipient, phone, packages, vrac }] }
 //
 // Secret required: OPENAI_API_KEY
+// Quota: 1 `ai_extract` per call (public.api_limits, migration_10).
+
+import { checkQuota } from '../_shared/quota.ts';
+
+/** ~5 MB of image: far above a compressed 1280px JPEG, blocks oversized payloads. */
+const MAX_BASE64_LENGTH = 7_000_000;
 
 const OPENAI_KEY = Deno.env.get('OPENAI_API_KEY') ?? '';
 
@@ -38,6 +44,12 @@ Deno.serve(async (req) => {
   try {
     const { imageBase64, mimeType } = await req.json();
     if (!imageBase64) return json({ error: 'imageBase64 required' }, 400);
+    if (typeof imageBase64 !== 'string' || imageBase64.length > MAX_BASE64_LENGTH) {
+      return json({ error: 'image too large' }, 413);
+    }
+
+    const refused = await checkQuota(req, 'ai_extract', 1, corsHeaders);
+    if (refused) return refused;
     const dataUrl = `data:${mimeType ?? 'image/jpeg'};base64,${imageBase64}`;
 
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -46,6 +58,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: 'gpt-4o',
         temperature: 0,
+        max_tokens: 4000, // caps the (output-dominated) cost of one call
         response_format: { type: 'json_object' },
         messages: [
           {
