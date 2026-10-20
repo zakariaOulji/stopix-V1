@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AddressAutocomplete, Button, Input, Screen, StopCard, StopsMap } from '@/components';
+import { AddressAutocomplete, Button, Input, LocateAddress, Screen, StopCard, StopsMap } from '@/components';
 import { useTourneeStore } from '@/stores';
 import { fakeDelay } from '@/mocks';
 import { aiService, geocodeService, QuotaExceededError, type GeocodeResult } from '@/services';
@@ -29,9 +29,9 @@ import { pickFromLibrary, takePhoto, type PickedImage } from '@/utils/imagePicke
 import { colors, fonts, layout, radius, spacing } from '@/theme';
 import type { Stop } from '@/types';
 import { showAlert } from '@/utils/dialog';
+import { isLocated, postalCodeFrom } from '@/utils/address';
 
 const STEPS = ['Adresses', 'Détails & ordre', 'Optimisation', 'Récapitulatif'];
-const CENTER = { latitude: 48.8566, longitude: 2.3522 };
 
 interface StopDraft {
   key: string;
@@ -67,28 +67,22 @@ const draftFromGeocode = (r: GeocodeResult): StopDraft => ({
   city: r.city,
 });
 
-/** Fallback coords (mock import without geocoding) scattered around Paris. */
-function coordsFor(i: number) {
-  const angle = i * 2.39996;
-  const dist = 0.006 + (i % 5) * 0.002;
-  return { lat: CENTER.latitude + Math.sin(angle) * dist, lng: CENTER.longitude + Math.cos(angle) * dist };
-}
-
 type StopInput = Omit<Stop, 'id' | 'tourneeId'>;
 
 function buildStopInputs(drafts: StopDraft[]): StopInput[] {
+  // Every draft is located before this runs (the wizard blocks otherwise):
+  // no invented position.
   return drafts.map((d, i) => {
-    const fallback = coordsFor(i);
     const minutes = 14 * 60 + i * 13;
     return {
       order: i + 1,
       status: 'pending',
       recipient: d.recipient.trim() || `Client ${i + 1}`,
       address: d.address.split(',')[0].trim(),
-      city: d.city ?? 'Paris',
-      postalCode: d.postalCode ?? d.address.match(/\b\d{5}\b/)?.[0] ?? '75001',
-      lat: d.lat ?? fallback.lat,
-      lng: d.lng ?? fallback.lng,
+      city: d.city ?? '',
+      postalCode: d.postalCode ?? postalCodeFrom(d.address),
+      lat: d.lat ?? 0,
+      lng: d.lng ?? 0,
       packages: d.packages,
       vrac: d.vrac,
       phone: d.phone.trim() || undefined,
@@ -177,7 +171,7 @@ export default function CreateTourneeScreen() {
       if (limitMessage) {
         showAlert('Adresses non localisées', `${limitMessage}
 
-Les adresses restantes ont été ajoutées sans position.`);
+Les adresses restantes ont été ajoutées sans position : localise-les à l’étape suivante.`);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -218,10 +212,7 @@ Les adresses restantes ont été ajoutées sans position.`);
       (async () => {
         // Use GPS position as the start point (falls back to no start if denied).
         const gps = await getCurrentPosition();
-        const points: LatLng[] = drafts.map((d, i) => {
-          const fb = coordsFor(i);
-          return { lat: d.lat ?? fb.lat, lng: d.lng ?? fb.lng };
-        });
+        const points: LatLng[] = drafts.map((d) => ({ lat: d.lat ?? 0, lng: d.lng ?? 0 }));
         const { order, improvement, distanceKm } = optimizeRoute(points, gps ?? undefined);
         // Keep the animation visible a touch.
         await fakeDelay(900);
@@ -239,7 +230,13 @@ Les adresses restantes ont été ajoutées sans position.`);
   }, [step, optimized]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const previewStops = buildStops('preview', drafts);
-  const { polyline: routePolyline, distanceKm: roadKm, durationMin: roadMin } = useRoutePolyline(previewStops, startCoord);
+  // Road route (Google Directions, counted in the daily quota) only from the
+  // optimisation step: not on every address added in steps 1-2.
+  const { polyline: routePolyline, distanceKm: roadKm, durationMin: roadMin } = useRoutePolyline(
+    step >= 2 ? previewStops : [],
+    startCoord,
+  );
+  const unlocatedCount = drafts.filter((d) => !isLocated(d)).length;
   const distanceKm = roadKm ?? optResult?.distanceKm ?? +(drafts.length * 1.4).toFixed(1);
   const durationMin =
     roadMin != null ? totalTourneeDuration(roadMin, drafts.length) : Math.round(distanceKm * 3 + drafts.length * 4);
@@ -270,7 +267,8 @@ Les adresses restantes ont été ajoutées sans position.`);
 
   const primaryLabel =
     step === 0 ? 'Continuer' : step === 1 ? 'Optimiser avec l’IA' : step === 2 ? 'Voir le récapitulatif' : 'Lancer la tournée';
-  const primaryDisabled = (step === 0 && drafts.length === 0) || (step === 2 && !optimized);
+  const primaryDisabled =
+    (step === 0 && drafts.length === 0) || (step === 1 && unlocatedCount > 0) || (step === 2 && !optimized);
   const showFooter = !(step === 2 && !optimized);
 
   return (
@@ -328,6 +326,7 @@ Les adresses restantes ont été ajoutées sans position.`);
                         <Text style={styles.orderBadgeText}>{i + 1}</Text>
                       </View>
                       <Text style={styles.quickAddr} numberOfLines={1}>{d.address}</Text>
+                      {!isLocated(d) && <Ionicons name="warning-outline" size={16} color={colors.warning} accessibilityLabel="Position inconnue" />}
                       <Pressable onPress={() => removeDraft(d.key)} hitSlop={8}>
                         <Ionicons name="trash-outline" size={18} color={colors.danger} />
                       </Pressable>
@@ -350,6 +349,14 @@ Les adresses restantes ont été ajoutées sans position.`);
                 <Ionicons name="information-circle-outline" size={15} color={colors.muted} />
                 <Text style={styles.subtitleInline}>Réordonne avec ↑/↓. Remplis les détails (optionnels).</Text>
               </View>
+              {unlocatedCount > 0 && (
+                <View style={styles.reorderHint}>
+                  <Ionicons name="warning-outline" size={15} color={colors.warning} />
+                  <Text style={[styles.subtitleInline, { color: colors.warning }]}>
+                    {unlocatedCount} adresse{unlocatedCount > 1 ? 's' : ''} à localiser ou supprimer avant d’optimiser.
+                  </Text>
+                </View>
+              )}
               <ScrollView
                 style={styles.flex1}
                 contentContainerStyle={styles.dragList}
@@ -401,12 +408,23 @@ Les adresses restantes ont été ajoutées sans position.`);
                     />
                     <TextInput
                       value={item.address}
-                      onChangeText={(v) => updateDraft(item.key, { address: v })}
+                      // Edited text no longer matches the old position: drop it until re-located.
+                      onChangeText={(v) =>
+                        updateDraft(item.key, { address: v, lat: undefined, lng: undefined, postalCode: undefined, city: undefined })
+                      }
                       placeholder="Adresse"
                       placeholderTextColor={colors.muted}
                       selectionColor={colors.primary}
                       style={styles.editInput}
                     />
+                    {!isLocated(item) && (
+                      <LocateAddress
+                        address={item.address}
+                        onLocated={(r) =>
+                          updateDraft(item.key, { address: r.address, lat: r.lat, lng: r.lng, postalCode: r.postalCode, city: r.city })
+                        }
+                      />
+                    )}
 
                     {/* Colis + Vrac quantities */}
                     <View style={styles.row}>

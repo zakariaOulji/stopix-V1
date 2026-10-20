@@ -13,12 +13,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AddressAutocomplete, Button, Input, Screen } from '@/components';
+import { AddressAutocomplete, Button, Input, LocateAddress, Screen } from '@/components';
 import { useTourneeStore } from '@/stores';
 import type { GeocodeResult } from '@/services';
 import type { Stop } from '@/types';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
 import { showAlert } from '@/utils/dialog';
+import { isLocated, postalCodeFrom } from '@/utils/address';
 
 interface Draft {
   key: string;
@@ -29,8 +30,9 @@ interface Draft {
   phone: string;
   accessCode: string;
   notes: string;
-  lat: number;
-  lng: number;
+  /** Undefined until the address is located (never an invented position). */
+  lat?: number;
+  lng?: number;
   postalCode?: string;
   city?: string;
 }
@@ -62,8 +64,9 @@ export default function EditTourneeScreen() {
           phone: s.phone ?? '',
           accessCode: s.accessCode ?? '',
           notes: s.notes ?? '',
-          lat: s.lat,
-          lng: s.lng,
+          // Stops saved without a real position come back as 0,0: treat as unlocated.
+          lat: isLocated(s) ? s.lat : undefined,
+          lng: isLocated(s) ? s.lng : undefined,
           postalCode: s.postalCode,
           city: s.city,
         })),
@@ -112,6 +115,14 @@ export default function EditTourneeScreen() {
       showAlert('Aucun stop', 'Ajoute au moins une adresse.');
       return;
     }
+    const unlocated = drafts.filter((d) => !isLocated(d)).length;
+    if (unlocated > 0) {
+      showAlert(
+        'Adresses à localiser',
+        `${unlocated} adresse${unlocated > 1 ? 's n’ont' : ' n’a'} pas de position. Appuie sur « Localiser » ou supprime ${unlocated > 1 ? 'ces arrêts' : 'cet arrêt'}.`,
+      );
+      return;
+    }
     setSaving(true);
     try {
       const stops: Omit<Stop, 'id' | 'tourneeId'>[] = drafts.map((d, i) => {
@@ -121,10 +132,10 @@ export default function EditTourneeScreen() {
           status: 'pending',
           recipient: d.recipient.trim() || `Client ${i + 1}`,
           address: d.address.split(',')[0].trim(),
-          city: d.city ?? 'Paris',
-          postalCode: d.postalCode ?? d.address.match(/\b\d{5}\b/)?.[0] ?? '75001',
-          lat: d.lat,
-          lng: d.lng,
+          city: d.city ?? '',
+          postalCode: d.postalCode ?? postalCodeFrom(d.address),
+          lat: d.lat ?? 0,
+          lng: d.lng ?? 0,
           packages: d.packages,
           vrac: d.vrac,
           phone: d.phone.trim() || undefined,
@@ -180,7 +191,21 @@ export default function EditTourneeScreen() {
               </View>
 
               <TextInput value={item.recipient} onChangeText={(v) => updateDraft(item.key, { recipient: v })} placeholder="Destinataire (nom)" placeholderTextColor={colors.muted} selectionColor={colors.primary} style={styles.editInput} />
-              <TextInput value={item.address} onChangeText={(v) => updateDraft(item.key, { address: v })} placeholder="Adresse" placeholderTextColor={colors.muted} selectionColor={colors.primary} style={styles.editInput} />
+              <TextInput
+                value={item.address}
+                // Edited text no longer matches the old position: drop it until re-located.
+                onChangeText={(v) => updateDraft(item.key, { address: v, lat: undefined, lng: undefined, postalCode: undefined, city: undefined })}
+                placeholder="Adresse"
+                placeholderTextColor={colors.muted}
+                selectionColor={colors.primary}
+                style={styles.editInput}
+              />
+              {!isLocated(item) && (
+                <LocateAddress
+                  address={item.address}
+                  onLocated={(r) => updateDraft(item.key, { address: r.address, lat: r.lat, lng: r.lng, postalCode: r.postalCode, city: r.city })}
+                />
+              )}
               <View style={styles.row}>
                 <Stepper label="Colis" value={item.packages} onChange={(n) => updateDraft(item.key, { packages: n })} />
                 <Stepper label="Vrac" value={item.vrac} onChange={(n) => updateDraft(item.key, { vrac: n })} />

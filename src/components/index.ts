@@ -38,3 +38,4 @@ export { SyncErrorBanner } from './SyncErrorBanner';
 export { DialogHost } from './DialogHost';
 export { Stepper } from './Stepper';
 export type { StepperProps } from './Stepper';
+export { LocateAddress } from './LocateAddress';

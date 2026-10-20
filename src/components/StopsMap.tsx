@@ -7,6 +7,7 @@ import { darkMapStyle } from '@/theme/mapStyle';
 import { getCurrentPosition } from '@/utils/location';
 import type { LatLng } from '@/utils/optimize';
 import type { Stop } from '@/types';
+import { isLocated } from '@/utils/address';
 
 export interface StopsMapProps {
   stops: Stop[];
@@ -53,7 +54,7 @@ function computeRegion(
 }
 
 export function StopsMap({
-  stops,
+  stops: allStops,
   center,
   latitudeDelta,
   longitudeDelta,
@@ -66,6 +67,8 @@ export function StopsMap({
   showUserLocation = false,
   style,
 }: StopsMapProps) {
+  // Stops saved without a real position (0,0) would sit off the coast of Africa.
+  const stops = useMemo(() => allStops.filter(isLocated), [allStops]);
   const mapRef = useRef<MapView>(null);
   const recenterOnUser = async () => {
     const pos = await getCurrentPosition();

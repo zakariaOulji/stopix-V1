@@ -95,7 +95,14 @@ export function Button({
 
   if (variant === 'primary') {
     return (
-      <Pressable onPress={handlePress} disabled={isDisabled} style={({ pressed }) => [baseContainer, pressed && styles.pressed]}>
+      <Pressable
+        onPress={handlePress}
+        disabled={isDisabled}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled: isDisabled, busy: loading }}
+        style={({ pressed }) => [baseContainer, pressed && styles.pressed]}
+      >
         <LinearGradient
           colors={gradients.primary}
           start={{ x: 0, y: 0 }}
@@ -118,6 +125,9 @@ export function Button({
     <Pressable
       onPress={handlePress}
       disabled={isDisabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
       style={({ pressed }) => [baseContainer, variantStyle, pressed && styles.pressed]}
     >
       {content}
