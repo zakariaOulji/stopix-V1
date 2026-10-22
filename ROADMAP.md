@@ -22,7 +22,7 @@ Issu de l'analyse business / UX / fonctionnelle / sécurité / scalabilité du 2
 ## Semaine 2 (7 – 13 sept.) — Clôture preuve de livraison + verrous sécurité
 - [x] Afficher la preuve (photo + signature + heure + GPS) — ✅ 18 oct. : dans la fiche détail de l'historique des livraisons (`app/history.tsx`), pas dans le détail de tournée
 - [ ] Rate limiting sur les edge functions `geocode` + `extract-addresses` (compteur par utilisateur/jour) — 20 oct. : code prêt (migration 10, `_shared/quota.ts`, branche `zakaria/feat/rate-limit`) ; migration 10 appliquée et `quota_test.sql` 10/10 PASS ; reste redéploiement des fonctions
-- [ ] Purger `.env` de l'historique git + rotation de la clé Supabase + `.gitignore`
+- [x] Purger `.env` de l'historique git + rotation de la clé Supabase + `.gitignore` — ✅ 22 oct. : `.env` n'est plus suivi (`.gitignore`, `.env.example`). Audit gitleaks de tout l'historique : seules des clés client Supabase publiques (anon / publishable, protégées par RLS), aucun vrai secret → purge (réécriture + force-push de toutes les branches) et rotation jugées inutiles.
 - [ ] Durcir la politique de mot de passe côté projet Supabase de production (8+ caractères)
 - [x] Committer le travail en cours par petits commits propres — ✅ 18 oct. : un commit par fonctionnalité (sécurité preuves, web phase 1, retours, historique)
 
@@ -44,7 +44,7 @@ Issu de l'analyse business / UX / fonctionnelle / sécurité / scalabilité du 2
 
 ## Semaine 5 (28 sept. – 4 oct.) — Clôture fiabilité, démarrage roadmap
 - [ ] Merge → `main` : tests complets + mise à jour du README (retirer « zéro backend »)
-- [ ] CI : scan de secrets (gitleaks) + audit des dépendances
+- [ ] CI : scan de secrets (gitleaks) + audit des dépendances — 22 oct. : gitleaks fait (job `secrets`, `.gitleaks.toml`) ; audit des dépendances à faire (`npm audit` : 75 vulnérabilités signalées)
 - [ ] Communication client : choisir le provider (Twilio / WhatsApp Business)
 - [ ] Communication client : edge function d'envoi
 - [ ] Communication client : déclenchement à l'étape clé (ETA / confirmation 1 clic)

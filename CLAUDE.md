@@ -11,7 +11,7 @@ Voir `README.md` et `BACKEND.md` pour le détail technique. Voir **`ROADMAP.md`*
 - `main` sur GitHub reste figé sur le frontend mocké initial : le vrai backend (auth, tournées, geocoding, extraction IA par photo, preuve de livraison) vit sur `dev` et n'est pas mergé dans `main`.
 - Base Supabase : migrations à appliquer à la main dans le SQL Editor, numérotées `supabase/migration_N_*.sql`. Appliquées jusqu'à la **#9** (`migration_9_delivery_history.sql`, 19 oct.). Une nouvelle colonne référencée par le code doit être migrée AVANT de déployer ce code, sinon les écritures sur `stops` échouent.
 - Historique des livraisons : table `deliveries` remplie par trigger sur `stops` (pas par l'app), lecture seule côté client.
-- `.env` contient de vrais identifiants Supabase (URL + clé anon) et est suivi par git sur certaines branches — à corriger (voir ROADMAP, section sécurité).
+- `.env` (URL + clé anon Supabase) n'est plus suivi par git depuis le 22 oct. ; modèle commité : `.env.example`. Il reste dans l'historique et dans les anciennes branches, mais ne contient qu'une clé client publique (RLS). Aucun secret serveur (service_role, OpenAI, Google) ne doit aller dans `.env`, `eas.json` ou une variable `EXPO_PUBLIC_*` : la CI le bloque (gitleaks, `.gitleaks.toml`).
 
 ## Repères utiles
 

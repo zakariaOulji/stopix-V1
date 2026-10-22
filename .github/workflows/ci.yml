@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, dev]
   pull_request:
 
 jobs:
@@ -28,3 +28,21 @@ jobs:
 
       - name: Test
         run: npm test -- --ci
+
+  secrets:
+    name: Scan de secrets (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history: a secret removed later is still leaked
+
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+
+      - name: Scan
+        # Config .gitleaks.toml: default rules, public Supabase client key allowed.
+        run: ./gitleaks git --no-banner --redact --config .gitleaks.toml .

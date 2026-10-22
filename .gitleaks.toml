@@ -1,0 +1,14 @@
+# Secret scan configuration (gitleaks), used by CI. Default rules + one allowlist.
+title = "STOPIX"
+
+[extend]
+useDefault = true
+
+# Supabase *client* keys (legacy anon JWT / sb_publishable_…) are public by
+# design: they are inlined in the shipped app (EXPO_PUBLIC_) and data is
+# protected by RLS. Only these lines are allowed; a service_role / sb_secret_
+# key, an OpenAI or Google key is still reported.
+[[allowlists]]
+description = "Clé client Supabase publique (EXPO_PUBLIC_SUPABASE_ANON_KEY)"
+regexTarget = "line"
+regexes = ['''EXPO_PUBLIC_SUPABASE_ANON_KEY''']
