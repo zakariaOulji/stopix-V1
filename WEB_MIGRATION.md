@@ -30,6 +30,9 @@ Code fait, typecheck + tests + `expo export --platform web` OK, **pas encore tes
 5. **Vraie carte** : `StopsMap.web.tsx` dessine une fausse carte stylisée, sans fond de carte. → Leaflet + OpenStreetMap (gratuit) ou Google Maps JS (clé déjà côté Google).
    - [x] 18 oct. : fait avec Leaflet + tuiles OpenStreetMap assombries par filtre CSS (CARTO exige désormais une clé). Mêmes props que la carte native, cadrage automatique sur les arrêts, arrêts à la même adresse écartés en éventail, position live + bouton recentrer. Les tuiles OSM publiques sont tolérées pour une bêta mais leur politique d'usage interdit un trafic important : passer à un fournisseur avec clé (MapTiler / Stadia / Google Maps JS) avant ouverture large.
 6. **PWA + hébergement** : manifest, icônes, `theme-color`, « Ajouter à l'écran d'accueil », safe areas iOS, largeur max ~480 px sur desktop. Héberger en HTTPS (obligatoire pour la géoloc et la caméra) : EAS Hosting (`eas deploy`) ou Vercel/Netlify avec rewrite SPA. Variables `EXPO_PUBLIC_*` à définir côté build (sinon `USE_MOCKS` vaut `true` par défaut).
+   - [x] 27 oct. : PWA (`public/manifest.json`, `public/index.html` : theme-color, balises iOS, `viewport-fit=cover`, largeur max 480 px sur desktop), icônes provisoires « S. » aux couleurs de l'app (`public/icons/`, à remplacer par un vrai logo). Vérifié dans Edge : manifest sans erreur, **installable**. Pas de service worker (risque de cache figé ; à envisager avec la file hors ligne).
+   - [x] Sortie `single` conservée : `static` casse au build (Supabase / AsyncStorage / Leaflet exécutés côté Node sans `window`).
+   - [ ] Déploiement EAS Hosting : `node scripts/deploy-web.mjs` (aperçu) puis `--prod` ; le script refuse un build démo ou sans Supabase. Vérifier après le 1er déploiement qu'une URL profonde (`/update-password`, `/history`) ne renvoie pas 404.
 
 ## Avant d'ouvrir l'inscription publique
 

@@ -9,6 +9,7 @@ import { useStats } from '@/hooks/useStats';
 import { employmentMeta, vehicleMeta } from '@/utils/status';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
 import { showAlert } from '@/utils/dialog';
+import { ENV } from '@/config/env';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -108,10 +109,15 @@ export default function ProfileScreen() {
           <Row icon="help-circle-outline" label="Aide & FAQ" onPress={() => showAlert('Aide', 'Centre d’aide bientôt disponible.')}>
             <Ionicons name="chevron-forward" size={18} color={colors.muted} />
           </Row>
-          <Divider />
-          <Row icon="refresh-outline" label="Réinitialiser la démo" onPress={onResetDemo}>
-            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-          </Row>
+          {/* Replaces the store with mock data: demo mode only. */}
+          {ENV.USE_MOCKS && (
+            <>
+              <Divider />
+              <Row icon="refresh-outline" label="Réinitialiser la démo" onPress={onResetDemo}>
+                <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+              </Row>
+            </>
+          )}
           <Divider />
           <Row icon="information-circle-outline" label="À propos">
             <Text style={styles.rowValue}>v1.0.0</Text>

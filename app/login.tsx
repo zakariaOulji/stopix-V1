@@ -14,14 +14,16 @@ import { Button, Input, Screen } from '@/components';
 import { useAuthStore } from '@/stores';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
 import { showAlert } from '@/utils/dialog';
+import { ENV } from '@/config/env';
 
 export default function LoginScreen() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
   const isSubmitting = useAuthStore((s) => s.isSubmitting);
 
-  const [email, setEmail] = useState('karim@stopix.app');
-  const [password, setPassword] = useState('demo1234');
+  // Demo credentials only in mock mode: real users must see an empty form.
+  const [email, setEmail] = useState(ENV.USE_MOCKS ? 'karim@stopix.app' : '');
+  const [password, setPassword] = useState(ENV.USE_MOCKS ? 'demo1234' : '');
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 

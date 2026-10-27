@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <!-- viewport-fit=cover: lets react-native-safe-area-context read the iPhone notch / home bar insets -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>STOPIX</title>
+    <meta name="description" content="Tournées optimisées, exécution terrain et preuves de livraison." />
+
+    <!-- PWA: install to home screen -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0A0F1E" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <!-- iOS (Safari ignores the manifest icons and display mode) -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="STOPIX" />
+
+    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <style id="expo-reset">
+      /* These styles make the body full-height */
+      html,
+      body {
+        height: 100%;
+        background-color: #0a0f1e;
+      }
+      /* These styles disable body scrolling if you are using <ScrollView> */
+      body {
+        overflow: hidden;
+      }
+      /* These styles make the root element full-height */
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+      /* Desktop / tablet: keep the mobile layout, centred, instead of stretching it */
+      @media (min-width: 600px) {
+        body {
+          background-color: #05080f;
+        }
+        #root {
+          max-width: 480px;
+          margin: 0 auto;
+          box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 0 60px rgba(0, 0, 0, 0.6);
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <noscript>STOPIX a besoin de JavaScript pour fonctionner.</noscript>
+    <!-- The root element for your Expo app. -->
+    <div id="root"></div>
+  </body>
+</html>

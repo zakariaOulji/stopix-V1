@@ -34,7 +34,14 @@
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "output": "single",
+      "name": "STOPIX",
+      "shortName": "STOPIX",
+      "lang": "fr",
+      "themeColor": "#0A0F1E",
+      "backgroundColor": "#0A0F1E",
+      "description": "Tournées optimisées, exécution terrain et preuves de livraison."
     },
     "plugins": [
       "expo-router",
