@@ -23,7 +23,7 @@ Issu de l'analyse business / UX / fonctionnelle / sécurité / scalabilité du 2
 - [x] Afficher la preuve (photo + signature + heure + GPS) — ✅ 18 oct. : dans la fiche détail de l'historique des livraisons (`app/history.tsx`), pas dans le détail de tournée
 - [ ] Rate limiting sur les edge functions `geocode` + `extract-addresses` (compteur par utilisateur/jour) — 20 oct. : code prêt (migration 10, `_shared/quota.ts`, branche `zakaria/feat/rate-limit`) ; migration 10 appliquée et `quota_test.sql` 10/10 PASS ; reste redéploiement des fonctions
 - [x] Purger `.env` de l'historique git + rotation de la clé Supabase + `.gitignore` — ✅ 22 oct. : `.env` n'est plus suivi (`.gitignore`, `.env.example`). Audit gitleaks de tout l'historique : seules des clés client Supabase publiques (anon / publishable, protégées par RLS), aucun vrai secret → purge (réécriture + force-push de toutes les branches) et rotation jugées inutiles.
-- [ ] Durcir la politique de mot de passe côté projet Supabase de production (8+ caractères)
+- [x] Durcir la politique de mot de passe côté projet Supabase de production (8+ caractères) — ✅ 27 oct. : réglé dans Supabase (Auth → Email) ; inscription et nouveau mot de passe alignés (`src/config/auth.ts`)
 - [x] Committer le travail en cours par petits commits propres — ✅ 18 oct. : un commit par fonctionnalité (sécurité preuves, web phase 1, retours, historique)
 
 ## Semaine 3 (14 – 20 sept.) — Test de charge, clôture du bloquant

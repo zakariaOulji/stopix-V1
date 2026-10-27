@@ -6,8 +6,9 @@ import { Button, Input, Screen, Spinner } from '@/components';
 import { authService } from '@/services';
 import { useAuthStore } from '@/stores';
 import { colors, fonts, layout, spacing } from '@/theme';
+import { MIN_PASSWORD_LENGTH } from '@/config/auth';
 
-const MIN_LENGTH = 8;
+const MIN_LENGTH = MIN_PASSWORD_LENGTH;
 
 /**
  * Landing page of the password-reset email. supabase-js reads the recovery

@@ -16,6 +16,7 @@ import { employmentMeta, vehicleMeta } from '@/utils/status';
 import type { EmploymentType, VehicleType } from '@/types';
 import { colors, fonts, layout, radius, spacing } from '@/theme';
 import { showAlert } from '@/utils/dialog';
+import { MIN_PASSWORD_LENGTH } from '@/config/auth';
 
 const STEPS = ['Vos infos', 'Votre activité', 'Finalisation'];
 const VEHICLES: VehicleType[] = ['velo', 'moto', 'voiture', 'camionnette'];
@@ -39,7 +40,7 @@ export default function RegisterScreen() {
     const next: typeof errors = {};
     if (!fullName.trim()) next.fullName = 'Nom requis';
     if (!email.trim()) next.email = 'Email requis';
-    if (password.length < 6) next.password = 'Au moins 6 caractères';
+    if (password.length < MIN_PASSWORD_LENGTH) next.password = `Au moins ${MIN_PASSWORD_LENGTH} caractères`;
     setErrors(next);
     return Object.keys(next).length === 0;
   };
