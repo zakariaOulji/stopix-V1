@@ -9,7 +9,7 @@ Voir `README.md` et `BACKEND.md` pour le détail technique. Voir **`ROADMAP.md`*
 - Au 19 oct. 2026, `dev` = `zakaria/feat/web-app` (fast-forward) : preuve de livraison, bucket de preuves privé, web app phase 1 (voir `WEB_MIGRATION.md`), retours vrac/sacs, historique des livraisons. Toujours vérifier `git status`/`git diff` avant d'analyser une feature.
 - `package.json` a un changement local non committé (scripts `android`/`ios` → `expo run:*`) qui ne vient pas d'une session Claude : ne pas l'inclure dans les commits sans demander.
 - `main` sur GitHub reste figé sur le frontend mocké initial : le vrai backend (auth, tournées, geocoding, extraction IA par photo, preuve de livraison) vit sur `dev` et n'est pas mergé dans `main`.
-- Base Supabase : migrations à appliquer à la main dans le SQL Editor, numérotées `supabase/migration_N_*.sql`. Appliquées jusqu'à la **#9** (`migration_9_delivery_history.sql`, 19 oct.). Une nouvelle colonne référencée par le code doit être migrée AVANT de déployer ce code, sinon les écritures sur `stops` échouent.
+- Base Supabase : migrations à appliquer à la main dans le SQL Editor, numérotées `supabase/migration_N_*.sql`. Appliquées jusqu'à la **#10** (`migration_10_usage_limits.sql`, 20 oct.). Une nouvelle colonne référencée par le code doit être migrée AVANT de déployer ce code, sinon les écritures sur `stops` échouent.
 - Historique des livraisons : table `deliveries` remplie par trigger sur `stops` (pas par l'app), lecture seule côté client.
 - `.env` (URL + clé anon Supabase) n'est plus suivi par git depuis le 22 oct. ; modèle commité : `.env.example`. Il reste dans l'historique et dans les anciennes branches, mais ne contient qu'une clé client publique (RLS). Aucun secret serveur (service_role, OpenAI, Google) ne doit aller dans `.env`, `eas.json` ou une variable `EXPO_PUBLIC_*` : la CI le bloque (gitleaks, `.gitleaks.toml`).
 
@@ -17,5 +17,5 @@ Voir `README.md` et `BACKEND.md` pour le détail technique. Voir **`ROADMAP.md`*
 
 - `src/services/*.service.ts` : bascule mock ↔ Supabase via `EXPO_PUBLIC_USE_MOCKS`.
 - `supabase/schema.sql` + migrations : RLS posée par utilisateur (`auth.uid()`), fonction `get_stats()` pour le dashboard.
-- `supabase/functions/geocode` et `extract-addresses` : edge functions qui protègent les clés Google Places / OpenAI côté serveur, mais sans limite d'usage par utilisateur pour l'instant.
+- `supabase/functions/geocode` et `extract-addresses` : edge functions qui protègent les clés Google Places / OpenAI côté serveur, avec quota quotidien par livreur + global (`_shared/quota.ts`, table `api_limits` réglable sans redéployer, migration 10). Un appel sans utilisateur connecté est refusé.
 - `src/utils/optimize.ts` : l'« optimisation IA » de tournée est en réalité un algorithme classique plus-proche-voisin + 2-opt (pas de ML), à ne pas présenter comme prédictif.
