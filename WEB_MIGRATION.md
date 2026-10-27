@@ -32,7 +32,8 @@ Code fait, typecheck + tests + `expo export --platform web` OK, **pas encore tes
 6. **PWA + hébergement** : manifest, icônes, `theme-color`, « Ajouter à l'écran d'accueil », safe areas iOS, largeur max ~480 px sur desktop. Héberger en HTTPS (obligatoire pour la géoloc et la caméra) : EAS Hosting (`eas deploy`) ou Vercel/Netlify avec rewrite SPA. Variables `EXPO_PUBLIC_*` à définir côté build (sinon `USE_MOCKS` vaut `true` par défaut).
    - [x] 27 oct. : PWA (`public/manifest.json`, `public/index.html` : theme-color, balises iOS, `viewport-fit=cover`, largeur max 480 px sur desktop), icônes provisoires « S. » aux couleurs de l'app (`public/icons/`, à remplacer par un vrai logo). Vérifié dans Edge : manifest sans erreur, **installable**. Pas de service worker (risque de cache figé ; à envisager avec la file hors ligne).
    - [x] Sortie `single` conservée : `static` casse au build (Supabase / AsyncStorage / Leaflet exécutés côté Node sans `window`).
-   - [ ] Déploiement EAS Hosting : `node scripts/deploy-web.mjs` (aperçu) puis `--prod` ; le script refuse un build démo ou sans Supabase. Vérifier après le 1er déploiement qu'une URL profonde (`/update-password`, `/history`) ne renvoie pas 404.
+   - [x] 27 oct. : 1er déploiement d'aperçu EAS Hosting (projet EAS `9d98e8e9-…`, sous-domaine `stopix`). Vérifié : toutes les URL profondes servent l'app (pas de 404), manifest + icônes servis, installable en HTTPS, build branché sur Supabase (formulaire de connexion vide).
+   - [ ] Supabase → Auth → URL Configuration : Site URL `https://stopix.expo.app` + Redirect URLs, puis `node scripts/deploy-web.mjs --prod`.
 
 ## Avant d'ouvrir l'inscription publique
 

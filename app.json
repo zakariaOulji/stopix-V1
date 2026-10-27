@@ -65,13 +65,20 @@
         "expo-image-picker",
         {
           "photosPermission": "STOPIX accède à vos photos pour importer une feuille de route.",
-          "cameraPermission": "STOPIX utilise l'appareil photo pour scanner une feuille de route."
+          "cameraPermission": "STOPIX utilise l'appareil photo pour scanner une feuille de route.",
+          "microphonePermission": false
         }
       ],
       "./plugins/withNavQueries"
     ],
     "experiments": {
       "typedRoutes": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9d98e8e9-2cd0-419b-a2fb-933711389d1c"
+      }
     }
   }
 }
